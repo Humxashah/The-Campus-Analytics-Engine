@@ -1,15 +1,31 @@
-CS101|Programming Fundamentals|3|50|NONE
-CS102|Object Oriented Programming|4|45|CS101
-CS201|Data Structures|3|40|CS102
-CS202|Database Systems|3|40|CS101
-CS301|Operating Systems|3|35|CS201
-SE101|Software Engineering|3|50|NONE
-SE102|Web Development|3|35|SE101
-SE201|Software Design|3|30|SE101
-MATH101|Calculus|3|60|NONE
-MATH102|Linear Algebra|3|50|MATH101
-PHY101|Physics|3|45|NONE
-ENG101|English Composition|2|50|NONE
-EE101|Electrical Circuits|3|40|NONE
-EE201|Digital Logic Design|3|35|EE101
-CS401|Artificial Intelligence|3|30|CS201
+code,title,credits,seats,prereq
+CS101,Programming Fundamentals,3,50,NONE
+CS102,Object Oriented Programming,4,45,CS101
+CS103,Discrete Mathematics,3,40,NONE
+CS201,Data Structures,3,40,CS102
+CS202,Database Systems,3,40,CS101
+CS203,Computer Networks,3,35,CS201
+CS204,Operating Systems,3,35,CS201
+CS301,Software Engineering,3,35,CS102
+CS302,Artificial Intelligence,3,30,CS201
+CS303,Data Science,3,30,CS202
+CS304,Cybersecurity,3,30,CS203
+CS401,Machine Learning,3,25,CS302
+CS402,Cloud Computing,3,25,CS204
+CS403,Blockchain Technology,3,25,CS304
+CS404,Internet of Things,3,25,CS203
+SE101,Software Engineering Basics,3,50,NONE
+SE102,Web Development,3,35,SE101
+SE103,Software Design,3,30,SE101
+SE201,Software Testing,3,30,SE102
+SE202,Project Management,3,30,SE103
+MATH101,Calculus,3,60,NONE
+MATH102,Linear Algebra,3,50,MATH101
+MATH103,Statistics,3,45,MATH101
+PHY101,Physics,3,45,NONE
+ENG101,English Composition,2,50,NONE
+EE101,Electrical Circuits,3,40,NONE
+EE102,Digital Logic Design,3,35,EE101
+EE201,Microprocessors,3,30,EE102
+EE202,Power Systems,3,30,EE201
+EE301,Control Systems,3,25,EE202
