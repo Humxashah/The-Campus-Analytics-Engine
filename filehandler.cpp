@@ -5,28 +5,99 @@
 
 using namespace std;
 
-// Read all lines from a text file
-vector<string> readTXT(const string& filename) {
-    vector<string> lines;
+// Helper function to parse a CSV line character by character
+vector<string> parseCSVLine(const string& line) {
+    vector<string> fields;
+    string currentField = "";
+    bool insideQuotes = false;
+    
+    // Iterate through each character in the line
+    for (size_t i = 0; i < line.length(); i++) {
+        char c = line[i];
+        
+        if (c == '"') {
+            // Toggle quote state
+            insideQuotes = !insideQuotes;
+        } else if (c == ',' && !insideQuotes) {
+            // End of field (comma outside quotes)
+            fields.push_back(currentField);
+            currentField = "";
+        } else {
+            // Add character to current field
+            currentField += c;
+        }
+    }
+    
+    // Add the last field
+    fields.push_back(currentField);
+    
+    return fields;
+}
+
+// Helper function to format a field for CSV
+string formatCSVField(const string& field) {
+    // Check if field contains comma or quote
+    bool needsQuotes = false;
+    for (size_t i = 0; i < field.length(); i++) {
+        if (field[i] == ',' || field[i] == '"') {
+            needsQuotes = true;
+            break;
+        }
+    }
+    
+    if (needsQuotes) {
+        // Escape any existing quotes by doubling them
+        string escaped = "";
+        for (size_t i = 0; i < field.length(); i++) {
+            if (field[i] == '"') {
+                escaped += "\"\"";
+            } else {
+                escaped += field[i];
+            }
+        }
+        return "\"" + escaped + "\"";
+    }
+    
+    return field;
+}
+
+// Read CSV file, skip header, parse each line
+vector<vector<string> > readTXT(const string& filename) {
+    vector<vector<string> > data;
     ifstream file(filename.c_str());
     
     // Check if file exists and can be opened
     if (!file.is_open()) {
-        return lines; // Return empty vector if file doesn't exist
+        return data; // Return empty vector if file doesn't exist
     }
     
     string line;
-    // Read each line and store in vector
+    bool isFirstLine = true;
+    
+    // Read each line from the file
     while (getline(file, line)) {
-        lines.push_back(line);
+        // Skip empty lines
+        if (line.empty()) {
+            continue;
+        }
+        
+        // Skip header row
+        if (isFirstLine) {
+            isFirstLine = false;
+            continue;
+        }
+        
+        // Parse the CSV line character by character
+        vector<string> fields = parseCSVLine(line);
+        data.push_back(fields);
     }
     
     file.close();
-    return lines;
+    return data;
 }
 
-// Write all lines to a text file (overwrites)
-bool writeTXT(const string& filename, const vector<string>& lines) {
+// Write CSV file with header row
+bool writeTXT(const string& filename, const vector<string>& header, const vector<vector<string> >& data) {
     ofstream file(filename.c_str());
     
     if (!file.is_open()) {
@@ -34,11 +105,24 @@ bool writeTXT(const string& filename, const vector<string>& lines) {
         return false;
     }
     
-    // Write each line to the file
-    for (size_t i = 0; i < lines.size(); i++) {
-        file << lines[i];
-        // Add newline after each line except the last one
-        if (i < lines.size() - 1) {
+    // Write header row
+    for (size_t i = 0; i < header.size(); i++) {
+        file << formatCSVField(header[i]);
+        if (i < header.size() - 1) {
+            file << ",";
+        }
+    }
+    file << endl;
+    
+    // Write data rows
+    for (size_t i = 0; i < data.size(); i++) {
+        for (size_t j = 0; j < data[i].size(); j++) {
+            file << formatCSVField(data[i][j]);
+            if (j < data[i].size() - 1) {
+                file << ",";
+            }
+        }
+        if (i < data.size() - 1) {
             file << endl;
         }
     }
@@ -47,8 +131,8 @@ bool writeTXT(const string& filename, const vector<string>& lines) {
     return true;
 }
 
-// Append a single line to a text file
-bool appendTXT(const string& filename, const string& line) {
+// Append a single row to CSV file
+bool appendTXT(const string& filename, const vector<string>& row) {
     ofstream file(filename.c_str(), ios::app); // Open in append mode
     
     if (!file.is_open()) {
@@ -62,7 +146,7 @@ bool appendTXT(const string& filename, const string& line) {
     string tempLine;
     while (getline(checkFile, tempLine)) {
         hasContent = true;
-        break; // Just check if there's at least one line
+        break;
     }
     checkFile.close();
     
@@ -71,107 +155,62 @@ bool appendTXT(const string& filename, const string& line) {
         file << endl;
     }
     
-    file << line;
+    // Write the row
+    for (size_t i = 0; i < row.size(); i++) {
+        file << formatCSVField(row[i]);
+        if (i < row.size() - 1) {
+            file << ",";
+        }
+    }
+    
     file.close();
     return true;
 }
 
-// Find a row containing the search key
-int findRow(const string& filename, const string& searchKey) {
-    vector<string> lines = readTXT(filename);
+// Linear search through file rows
+vector<string> findRow(const string& filename, int colIndex, const string& searchValue) {
+    vector<vector<string> > data = readTXT(filename);
     
-    // Search through all lines
-    for (size_t i = 0; i < lines.size(); i++) {
-        if (lines[i].find(searchKey) != string::npos) {
-            return i; // Return index of found row
+    // Search through all rows
+    for (size_t i = 0; i < data.size(); i++) {
+        // Check if column index exists in this row
+        if (colIndex >= 0 && colIndex < static_cast<int>(data[i].size())) {
+            if (data[i][colIndex] == searchValue) {
+                return data[i]; // Return the matching row
+            }
         }
     }
     
-    return -1; // Not found
+    // Return empty vector if not found
+    return vector<string>();
 }
 
-// Check if a row exists
-bool rowExists(const string& filename, const string& searchKey) {
-    return findRow(filename, searchKey) != -1;
+// Check if a row exists with specific value at column index
+bool rowExists(const string& filename, int colIndex, const string& searchValue) {
+    vector<string> row = findRow(filename, colIndex, searchValue);
+    return !row.empty();
 }
 
-// Initialize data files with sample data
+// Initialize data files - simply checks if files exist, does NOT create any data
 void initializeDataFiles() {
-    // Check if students.txt exists, if not create with sample data
-    if (!rowExists("students.txt", "student")) {
-        vector<string> sampleStudents;
-        sampleStudents.push_back("2024001|Ali Ahmed|BS Computer Science|3.45|active");
-        sampleStudents.push_back("2024002|Fatima Khan|BS Computer Science|3.78|active");
-        sampleStudents.push_back("2024003|Muhammad Hassan|BS Software Engineering|3.21|active");
-        sampleStudents.push_back("2024004|Ayesha Malik|BS Computer Science|2.95|active");
-        sampleStudents.push_back("2024005|Usman Raza|BS Software Engineering|3.56|active");
-        sampleStudents.push_back("2024006|Sana Tariq|BS Computer Science|3.89|active");
-        sampleStudents.push_back("2024007|Hamza Ali|BS Software Engineering|3.12|active");
-        sampleStudents.push_back("2024008|Zara Shah|BS Computer Science|3.67|active");
-        sampleStudents.push_back("2024009|Bilal Ahmed|BS Software Engineering|2.88|active");
-        sampleStudents.push_back("2024010|Nadia Khan|BS Computer Science|3.94|active");
-        writeTXT("students.txt", sampleStudents);
+    // Just check if files exist, don't create them
+    // The data files should already exist with the sample data
+    ifstream students("students.txt");
+    ifstream courses("courses.txt");
+    ifstream enrollments("enrollments.txt");
+    ifstream attendance("attendance_log.txt");
+    ifstream fees("fees.txt");
+    
+    if (!students.is_open() || !courses.is_open() || 
+        !enrollments.is_open() || !attendance.is_open() || 
+        !fees.is_open()) {
+        cerr << "Warning: Some data files are missing!" << endl;
+        cerr << "Please ensure all data files exist in the current directory." << endl;
     }
     
-    // Check if courses.txt exists
-    if (!rowExists("courses.txt", "course")) {
-        vector<string> sampleCourses;
-        sampleCourses.push_back("CS101|Programming Fundamentals|3|50|none");
-        sampleCourses.push_back("CS102|Object Oriented Programming|4|45|CS101");
-        sampleCourses.push_back("CS201|Data Structures|3|40|CS102");
-        sampleCourses.push_back("CS202|Database Systems|3|40|CS101");
-        sampleCourses.push_back("SE101|Software Engineering|3|50|none");
-        sampleCourses.push_back("SE102|Web Development|3|35|SE101");
-        sampleCourses.push_back("MATH101|Calculus|3|60|none");
-        sampleCourses.push_back("MATH102|Linear Algebra|3|50|MATH101");
-        sampleCourses.push_back("PHY101|Physics|3|45|none");
-        sampleCourses.push_back("ENG101|English Composition|2|50|none");
-        writeTXT("courses.txt", sampleCourses);
-    }
-    
-    // Check if enrollments.txt exists
-    if (!rowExists("enrollments.txt", "enrollment")) {
-        vector<string> sampleEnrollments;
-        sampleEnrollments.push_back("2024001|CS101|A");
-        sampleEnrollments.push_back("2024001|CS102|A");
-        sampleEnrollments.push_back("2024001|MATH101|A");
-        sampleEnrollments.push_back("2024002|CS101|A");
-        sampleEnrollments.push_back("2024002|CS201|A");
-        sampleEnrollments.push_back("2024002|MATH101|A");
-        sampleEnrollments.push_back("2024003|CS101|A");
-        sampleEnrollments.push_back("2024003|SE101|A");
-        sampleEnrollments.push_back("2024004|CS102|A");
-        sampleEnrollments.push_back("2024004|CS202|A");
-        writeTXT("enrollments.txt", sampleEnrollments);
-    }
-    
-    // Check if attendance_log.txt exists
-    if (!rowExists("attendance_log.txt", "attendance")) {
-        vector<string> sampleAttendance;
-        sampleAttendance.push_back("2024-01-15|2024001|CS101|Present");
-        sampleAttendance.push_back("2024-01-15|2024002|CS101|Present");
-        sampleAttendance.push_back("2024-01-15|2024003|CS101|Absent");
-        sampleAttendance.push_back("2024-01-15|2024004|CS102|Present");
-        sampleAttendance.push_back("2024-01-16|2024001|CS102|Present");
-        sampleAttendance.push_back("2024-01-16|2024002|CS102|Present");
-        sampleAttendance.push_back("2024-01-16|2024003|SE101|Present");
-        sampleAttendance.push_back("2024-01-16|2024004|CS202|Absent");
-        sampleAttendance.push_back("2024-01-17|2024001|MATH101|Present");
-        sampleAttendance.push_back("2024-01-17|2024002|MATH101|Present");
-        writeTXT("attendance_log.txt", sampleAttendance);
-    }
-    
-    // Check if fees.txt exists
-    if (!rowExists("fees.txt", "fee")) {
-        vector<string> sampleFees;
-        sampleFees.push_back("2024001|2024-01-10|50000|Paid");
-        sampleFees.push_back("2024001|2024-02-10|50000|Paid");
-        sampleFees.push_back("2024002|2024-01-10|50000|Paid");
-        sampleFees.push_back("2024002|2024-02-10|50000|Unpaid");
-        sampleFees.push_back("2024003|2024-01-10|50000|Paid");
-        sampleFees.push_back("2024004|2024-01-10|50000|Unpaid");
-        sampleFees.push_back("2024005|2024-01-10|50000|Paid");
-        sampleFees.push_back("2024006|2024-01-10|50000|Unpaid");
-        writeTXT("fees.txt", sampleFees);
-    }
+    students.close();
+    courses.close();
+    enrollments.close();
+    attendance.close();
+    fees.close();
 }
