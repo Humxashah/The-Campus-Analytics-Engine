@@ -1,0 +1,15 @@
+2024001|Ali Ahmed|CS|3.45|active
+2024002|Fatima Khan|CS|3.78|active
+2024003|Muhammad Hassan|SE|3.21|active
+2024004|Ayesha Malik|CS|2.95|active
+2024005|Usman Raza|SE|3.56|active
+2024006|Sana Tariq|CS|3.89|active
+2024007|Hamza Ali|SE|3.12|active
+2024008|Zara Shah|CS|3.67|active
+2024009|Bilal Ahmed|SE|2.88|active
+2024010|Nadia Khan|CS|3.94|active
+2024011|Omar Farooq|EE|3.33|active
+2024012|Hina Tariq|CS|3.55|active
+2024013|Imran Malik|SE|2.76|active
+2024014|Sadia Khan|EE|3.82|active
+2024015|Raza Ali|CS|3.41|active

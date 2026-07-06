@@ -32,6 +32,8 @@ void enterMarks();
  */
 void viewBestThreeQuizzes();
 
+void viewLetterGrade();
+
 /*
  * Calculates and displays weighted total
  * Quiz: 20%, Assignment: 10%, Midterm: 30%, Final: 40%

@@ -1,0 +1,15 @@
+CS101|Programming Fundamentals|3|50|NONE
+CS102|Object Oriented Programming|4|45|CS101
+CS201|Data Structures|3|40|CS102
+CS202|Database Systems|3|40|CS101
+CS301|Operating Systems|3|35|CS201
+SE101|Software Engineering|3|50|NONE
+SE102|Web Development|3|35|SE101
+SE201|Software Design|3|30|SE101
+MATH101|Calculus|3|60|NONE
+MATH102|Linear Algebra|3|50|MATH101
+PHY101|Physics|3|45|NONE
+ENG101|English Composition|2|50|NONE
+EE101|Electrical Circuits|3|40|NONE
+EE201|Digital Logic Design|3|35|EE101
+CS401|Artificial Intelligence|3|30|CS201
