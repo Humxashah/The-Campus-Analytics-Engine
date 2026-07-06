@@ -278,7 +278,6 @@ void printSemesterResult() {
         }
         
         string attendanceStatus = hasShortage ? "SHORTAGE" : "OK";
-        string statusColor = hasShortage ? "!" : " ";
         
         cout << left << setw(15) << student.rollNumber
              << setw(30) << student.name
