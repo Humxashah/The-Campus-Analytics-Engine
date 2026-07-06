@@ -54,7 +54,7 @@ void generateReceipt(const string& roll, const string& semester);
  * Returns students with a balance > 0 past due date
  * Sorted by outstanding amount using bubble sort
  */
-void getDefaulters();
+void getDefaulters();  // Added this function
 
 /*
  * Parses a fee line from fees.txt

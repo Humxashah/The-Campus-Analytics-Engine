@@ -31,6 +31,12 @@ void addStudent();
  * Searches for student by roll number
  * Returns student details or empty if student ID is not available
  */
+void searchStudentByRoll();  // Added this function
+
+/*
+ * Searches for students by name
+ * Returns student details or empty if student ID is not available
+ */
 void searchByName();
 
 /*

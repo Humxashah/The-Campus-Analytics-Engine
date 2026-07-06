@@ -14,7 +14,6 @@
 #include "fee_tracker.h"
 #include "reports.h"
 
-
 using namespace std;
 
 // Function prototypes for menu system
@@ -120,16 +119,16 @@ void showStudentMenu() {
                 searchStudentByRoll();
                 break;
             case 3:
-                searchStudentByName();
+                searchByName();  // Fixed: Changed from searchStudentByName to searchByName
                 break;
             case 4:
                 updateStudent();
                 break;
             case 5:
-                softDeleteStudent();
+                softDelete();  // Fixed: Changed from softDeleteStudent to softDelete
                 break;
             case 6:
-                viewActiveStudents();
+                listActiveStudents();  // Fixed: Changed from viewActiveStudents to listActiveStudents
                 break;
             case 7:
                 cout << "Returning to Main Menu..." << endl;
@@ -163,15 +162,24 @@ void showCourseMenu() {
         }
         
         switch(choice) {
-            case 1:
-                enrollStudent();
+            case 1: {
+                EnrollResult result = enrollStudent();
+                cout << getEnrollResultMessage(result) << endl;
                 break;
+            }
             case 2:
                 dropCourse();
                 break;
-            case 3:
-                viewCreditLoad();
+            case 3: {
+                string roll, semester;
+                cout << "Enter Student Roll Number: ";
+                cin >> roll;
+                cout << "Enter Semester: ";
+                cin >> semester;
+                int credits = getCreditLoad(roll, semester);
+                cout << "Total Credit Hours: " << credits << " / 21" << endl;
                 break;
+            }
             case 4:
                 listEnrolledStudents();
                 break;
@@ -211,17 +219,24 @@ void showAttendanceMenu() {
             case 1:
                 markAttendance();
                 break;
-            case 2:
-                viewAttendancePercentage();
+            case 2: {
+                string roll, courseCode;
+                cout << "Enter Student Roll Number: ";
+                cin >> roll;
+                cout << "Enter Course Code: ";
+                cin >> courseCode;
+                double pct = getAttendancePct(roll, courseCode);
+                cout << "Attendance Percentage: " << fixed << setprecision(2) << pct << "%" << endl;
                 break;
+            }
             case 3:
-                viewShortageList();
+                getShortageList();  // Fixed: Changed from viewShortageList to getShortageList
                 break;
             case 4:
-                undoLastAttendance();
+                undoLastSession();  // Fixed: Changed from undoLastAttendance to undoLastSession
                 break;
             case 5:
-                viewDailyAttendance();
+                printDailySheet();  // Fixed: Changed from viewDailyAttendance to printDailySheet
                 break;
             case 6:
                 cout << "Returning to Main Menu..." << endl;
@@ -260,21 +275,73 @@ void showGradesMenu() {
             case 1:
                 enterMarks();
                 break;
-            case 2:
-                viewBestThreeQuizzes();
+            case 2: {
+                string roll, courseCode;
+                cout << "Enter Student Roll Number: ";
+                cin >> roll;
+                cout << "Enter Course Code: ";
+                cin >> courseCode;
+                GradeRecord record = findGradeRecord(roll, courseCode);
+                if (record.rollNumber != "NULL") {
+                    double bestAvg = bestThreeOffFive(record.quizMarks);
+                    cout << "Best Three Quiz Average: " << fixed << setprecision(2) << bestAvg << endl;
+                } else {
+                    cout << "No grade record found!" << endl;
+                }
                 break;
-            case 3:
-                viewWeightedTotal();
+            }
+            case 3: {
+                string roll, courseCode;
+                cout << "Enter Student Roll Number: ";
+                cin >> roll;
+                cout << "Enter Course Code: ";
+                cin >> courseCode;
+                GradeRecord record = findGradeRecord(roll, courseCode);
+                if (record.rollNumber != "NULL") {
+                    double quizAvg = bestThreeOffFive(record.quizMarks);
+                    double total = computeWeightedTotal(quizAvg, record.assignment, record.midterm, record.finalExam);
+                    cout << "Weighted Total: " << fixed << setprecision(2) << total << endl;
+                } else {
+                    cout << "No grade record found!" << endl;
+                }
                 break;
-            case 4:
-                viewLetterGrade();
+            }
+            case 4: {
+                string roll, courseCode;
+                cout << "Enter Student Roll Number: ";
+                cin >> roll;
+                cout << "Enter Course Code: ";
+                cin >> courseCode;
+                GradeRecord record = findGradeRecord(roll, courseCode);
+                if (record.rollNumber != "NULL") {
+                    cout << "Letter Grade: " << record.letterGrade << endl;
+                } else {
+                    cout << "No grade record found!" << endl;
+                }
                 break;
-            case 5:
-                viewGPA();
+            }
+            case 5: {
+                string roll, semester;
+                cout << "Enter Student Roll Number: ";
+                cin >> roll;
+                cout << "Enter Semester: ";
+                cin >> semester;
+                double gpa = computeGPA(roll, semester);
+                cout << "GPA: " << fixed << setprecision(2) << gpa << endl;
                 break;
-            case 6:
-                viewClassStatistics();
+            }
+            case 6: {
+                string courseCode;
+                cout << "Enter Course Code: ";
+                cin >> courseCode;
+                Stats stats = computeClassStats(courseCode);
+                cout << "\n--- CLASS STATISTICS ---" << endl;
+                cout << "Highest: " << fixed << setprecision(2) << stats.highest << endl;
+                cout << "Lowest: " << fixed << setprecision(2) << stats.lowest << endl;
+                cout << "Mean: " << fixed << setprecision(2) << stats.mean << endl;
+                cout << "Median: " << fixed << setprecision(2) << stats.median << endl;
                 break;
+            }
             case 7:
                 cout << "Returning to Main Menu..." << endl;
                 break;
@@ -309,11 +376,18 @@ void showFeeMenu() {
             case 1:
                 recordPayment();
                 break;
-            case 2:
-                viewOutstandingBalance();
+            case 2: {
+                string roll, semester;
+                cout << "Enter Student Roll Number: ";
+                cin >> roll;
+                cout << "Enter Semester: ";
+                cin >> semester;
+                double balance = getOutstandingBalance(roll, semester);
+                cout << "Outstanding Balance: Rs. " << fixed << setprecision(2) << balance << endl;
                 break;
+            }
             case 3:
-                viewFeeDefaulters();
+                getDefaulters();  // Fixed: Changed from viewFeeDefaulters to getDefaulters
                 break;
             case 4:
                 cout << "Returning to Main Menu..." << endl;
@@ -349,19 +423,19 @@ void showReportsMenu() {
         
         switch(choice) {
             case 1:
-                generateMeritList();
+                printMeritList();  // Fixed: Changed from generateMeritList to printMeritList
                 break;
             case 2:
-                generateAttendanceDefaulters();
+                printAttendanceDefaulters();  // Fixed: Changed from generateAttendanceDefaulters to printAttendanceDefaulters
                 break;
             case 3:
-                generateFeeDefaulters();
+                printFeeDefaulters();  // Fixed: Changed from generateFeeDefaulters to printFeeDefaulters
                 break;
             case 4:
-                generateSemesterResult();
+                printSemesterResult();  // Fixed: Changed from generateSemesterResult to printSemesterResult
                 break;
             case 5:
-                generateDepartmentSummary();
+                printDepartmentSummary();  // Fixed: Changed from generateDepartmentSummary to printDepartmentSummary
                 break;
             case 6:
                 cout << "Returning to Main Menu..." << endl;

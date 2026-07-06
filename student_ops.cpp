@@ -8,6 +8,30 @@
 
 using namespace std;
 
+    // Search student by roll number
+void searchStudentByRoll() {
+    cout << "\n--- SEARCH STUDENT BY ROLL NUMBER ---" << endl;
+    
+    string roll;
+    cout << "Enter Roll Number: ";
+    cin >> roll;
+    
+    Student student = findStudentByRoll(roll);
+    
+    if (student.rollNumber == "NULL") {
+        cout << "Student not found!" << endl;
+        return;
+    }
+    
+    // Display student information
+    cout << "\n--- STUDENT INFORMATION ---" << endl;
+    cout << "Roll Number: " << student.rollNumber << endl;
+    cout << "Name: " << student.name << endl;
+    cout << "Department: " << student.department << endl;
+    cout << "CGPA: " << fixed << setprecision(2) << student.cgpa << endl;
+    cout << "Status: " << student.status << endl;
+}
+
 // Parse a line from students.txt into a Student struct
 Student parseStudentLine(const string& line) {
     Student student;
