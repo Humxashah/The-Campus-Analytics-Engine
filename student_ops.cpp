@@ -8,28 +8,35 @@
 
 using namespace std;
 
-    // Search student by roll number
-void searchStudentByRoll() {
-    cout << "\n--- SEARCH STUDENT BY ROLL NUMBER ---" << endl;
+// Helper function to check if a string contains another string (case insensitive)
+bool containsIgnoreCase(const string& str, const string& substr) {
+    if (substr.empty()) return true;
     
-    string roll;
-    cout << "Enter Roll Number: ";
-    cin >> roll;
+    string strLower = str;
+    string subLower = substr;
     
-    Student student = findStudentByRoll(roll);
-    
-    if (student.rollNumber == "NULL") {
-        cout << "Student not found!" << endl;
-        return;
+    // Convert both to lowercase
+    for (size_t i = 0; i < strLower.length(); i++) {
+        strLower[i] = tolower(strLower[i]);
+    }
+    for (size_t i = 0; i < subLower.length(); i++) {
+        subLower[i] = tolower(subLower[i]);
     }
     
-    // Display student information
-    cout << "\n--- STUDENT INFORMATION ---" << endl;
-    cout << "Roll Number: " << student.rollNumber << endl;
-    cout << "Name: " << student.name << endl;
-    cout << "Department: " << student.department << endl;
-    cout << "CGPA: " << fixed << setprecision(2) << student.cgpa << endl;
-    cout << "Status: " << student.status << endl;
+    // Manual find without using algorithm library
+    for (size_t i = 0; i <= strLower.length() - subLower.length(); i++) {
+        bool found = true;
+        for (size_t j = 0; j < subLower.length(); j++) {
+            if (strLower[i + j] != subLower[j]) {
+                found = false;
+                break;
+            }
+        }
+        if (found) {
+            return true;
+        }
+    }
+    return false;
 }
 
 // Parse a line from students.txt into a Student struct
@@ -124,26 +131,64 @@ bool validateCGPA(double cgpa) {
     return (cgpa >= 0.0 && cgpa <= 4.0);
 }
 
-// Find student by roll number
+// Find student by roll number - supports partial matching
 Student findStudentByRoll(const string& roll) {
     vector<vector<string> > data = readTXT("students.txt");
+    vector<Student> matches;
     
     for (size_t i = 0; i < data.size(); i++) {
-        if (data[i].size() >= 5 && data[i][0] == roll && data[i][4] == "active") {
-            Student student;
-            student.rollNumber = data[i][0];
-            student.name = data[i][1];
-            student.department = data[i][2];
-            student.cgpa = atof(data[i][3].c_str());
-            student.status = data[i][4];
-            return student;
+        if (data[i].size() >= 5 && data[i][4] == "active") {
+            // Check if roll contains the search string (partial match)
+            if (containsIgnoreCase(data[i][0], roll)) {
+                Student student;
+                student.rollNumber = data[i][0];
+                student.name = data[i][1];
+                student.department = data[i][2];
+                student.cgpa = atof(data[i][3].c_str());
+                student.status = data[i][4];
+                matches.push_back(student);
+            }
         }
     }
     
-    // Return empty student if not found
-    Student emptyStudent;
-    emptyStudent.rollNumber = "NULL";
-    return emptyStudent;
+    // If multiple matches found, display them and let user choose
+    if (matches.size() > 1) {
+        cout << "\nMultiple students found with matching roll numbers:" << endl;
+        cout << left << setw(5) << "No." 
+             << setw(15) << "Roll Number" 
+             << setw(30) << "Name" 
+             << setw(15) << "Department" << endl;
+        cout << string(65, '-') << endl;
+        
+        for (size_t i = 0; i < matches.size(); i++) {
+            cout << left << setw(5) << (i + 1)
+                 << setw(15) << matches[i].rollNumber
+                 << setw(30) << matches[i].name
+                 << setw(15) << matches[i].department << endl;
+        }
+        
+        int choice;
+        cout << "\nEnter the number of the student you want to select (0 to cancel): ";
+        cin >> choice;
+        
+        if (choice > 0 && choice <= static_cast<int>(matches.size())) {
+            return matches[choice - 1];
+        } else {
+            Student emptyStudent;
+            emptyStudent.rollNumber = "NULL";
+            return emptyStudent;
+        }
+    }
+    // If exactly one match found, return it
+    else if (matches.size() == 1) {
+        return matches[0];
+    }
+    // No matches found
+    else {
+        Student emptyStudent;
+        emptyStudent.rollNumber = "NULL";
+        return emptyStudent;
+    }
 }
 
 // Selection sort for students by roll number
@@ -251,6 +296,30 @@ void addStudent() {
     }
 }
 
+// Search by roll number - supports partial matching
+void searchStudentByRoll() {
+    cout << "\n--- SEARCH STUDENT BY ROLL NUMBER ---" << endl;
+    cout << "Enter Roll Number (partial or full): ";
+    
+    string roll;
+    cin >> roll;
+    
+    Student student = findStudentByRoll(roll);
+    
+    if (student.rollNumber == "NULL") {
+        cout << "No student found with that roll number!" << endl;
+        return;
+    }
+    
+    // Display student information
+    cout << "\n--- STUDENT INFORMATION ---" << endl;
+    cout << "Roll Number: " << student.rollNumber << endl;
+    cout << "Name: " << student.name << endl;
+    cout << "Department: " << student.department << endl;
+    cout << "CGPA: " << fixed << setprecision(2) << student.cgpa << endl;
+    cout << "Status: " << student.status << endl;
+}
+
 // Search by name - returns student details or empty if not available
 void searchByName() {
     cout << "\n--- SEARCH STUDENT BY NAME ---" << endl;
@@ -263,26 +332,14 @@ void searchByName() {
     vector<vector<string> > data = readTXT("students.txt");
     vector<Student> foundStudents;
     
-    // Convert search name to lowercase for case-insensitive comparison
-    string searchLower = searchName;
-    for (size_t i = 0; i < searchLower.length(); i++) {
-        searchLower[i] = tolower(searchLower[i]);
-    }
-    
     for (size_t i = 0; i < data.size(); i++) {
         if (data[i].size() >= 5) {
             if (data[i][4] != "active") {
                 continue; // Skip inactive students
             }
             
-            // Convert student name to lowercase for comparison
-            string studentNameLower = data[i][1];
-            for (size_t j = 0; j < studentNameLower.length(); j++) {
-                studentNameLower[j] = tolower(studentNameLower[j]);
-            }
-            
-            // Check if name contains substring
-            if (studentNameLower.find(searchLower) != string::npos) {
+            // Check if name contains the search string
+            if (containsIgnoreCase(data[i][1], searchName)) {
                 Student student;
                 student.rollNumber = data[i][0];
                 student.name = data[i][1];
