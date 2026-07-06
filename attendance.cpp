@@ -9,31 +9,49 @@
 
 using namespace std;
 
-// Parse attendance line
+// Global backup variables
+vector<vector<string> > attendanceBackup;
+bool hasBackup = false;
+
+// Parse attendance line from CSV
 AttendanceRecord parseAttendanceLine(const string& line) {
     AttendanceRecord record;
-    stringstream ss(line);
+    vector<string> fields = parseCSVLine(line);
     
-    getline(ss, record.date, '|');
-    getline(ss, record.rollNumber, '|');
-    getline(ss, record.courseCode, '|');
-    getline(ss, record.status, '|');
+    if (fields.size() >= 4) {
+        record.rollNumber = fields[0];
+        record.courseCode = fields[1];
+        record.date = fields[2];
+        record.status = fields[3];
+    }
     
     return record;
 }
 
-// Calculate attendance percentage
-double calculateAttendancePercentage(const string& roll, const string& courseCode) {
-    vector<string> lines = readTXT("attendance_log.txt");
+// Save backup of current attendance data
+void saveAttendanceBackup() {
+    // Read current attendance data
+    attendanceBackup = readTXT("attendance_log.txt");
+    hasBackup = true;
+}
+
+// Compute attendance percentage: (present + 0.5 * late) / totalSessions * 100.0
+double getAttendancePct(const string& roll, const string& courseCode) {
+    vector<vector<string> > data = readTXT("attendance_log.txt");
     int totalSessions = 0;
-    int presentSessions = 0;
+    double weightedPresent = 0.0;
     
-    for (size_t i = 0; i < lines.size(); i++) {
-        AttendanceRecord record = parseAttendanceLine(lines[i]);
-        if (record.rollNumber == roll && record.courseCode == courseCode) {
-            totalSessions++;
-            if (record.status == "Present") {
-                presentSessions++;
+    // Accumulator loop
+    for (size_t i = 0; i < data.size(); i++) {
+        if (data[i].size() >= 4) {
+            if (data[i][0] == roll && data[i][1] == courseCode) {
+                totalSessions++;
+                if (data[i][3] == "P") {
+                    weightedPresent += 1.0; // Present counts as 1
+                } else if (data[i][3] == "L") {
+                    weightedPresent += 0.5; // Late counts as 0.5
+                }
+                // Absent counts as 0
             }
         }
     }
@@ -42,15 +60,15 @@ double calculateAttendancePercentage(const string& roll, const string& courseCod
         return 0.0;
     }
     
-    return (static_cast<double>(presentSessions) / totalSessions) * 100.0;
+    return (weightedPresent / totalSessions) * 100.0;
 }
 
-// Mark attendance
+// Mark attendance - iterates enrolled students, prompts P/A/L for each
 void markAttendance() {
     cout << "\n--- MARK ATTENDANCE ---" << endl;
     
     string date;
-    cout << "Enter Date (YYYY-MM-DD): ";
+    cout << "Enter Date (DD-MM-YYYY): ";
     cin >> date;
     
     string courseCode;
@@ -65,18 +83,14 @@ void markAttendance() {
     }
     
     // Get list of enrolled students
-    vector<string> enrollmentLines = readTXT("enrollments.txt");
+    vector<vector<string> > enrollmentData = readTXT("enrollments.txt");
     vector<string> enrolledStudents;
     
-    for (size_t i = 0; i < enrollmentLines.size(); i++) {
-        stringstream ss(enrollmentLines[i]);
-        string roll, code, status;
-        getline(ss, roll, '|');
-        getline(ss, code, '|');
-        getline(ss, status, '|');
-        
-        if (code == courseCode && status == "A") {
-            enrolledStudents.push_back(roll);
+    for (size_t i = 0; i < enrollmentData.size(); i++) {
+        if (enrollmentData[i].size() >= 4) {
+            if (enrollmentData[i][1] == courseCode && enrollmentData[i][3] == "enrolled") {
+                enrolledStudents.push_back(enrollmentData[i][0]);
+            }
         }
     }
     
@@ -85,11 +99,14 @@ void markAttendance() {
         return;
     }
     
+    // Save backup before marking attendance
+    saveAttendanceBackup();
+    
     cout << "\nMarking attendance for " << enrolledStudents.size() << " students..." << endl;
-    cout << "Enter 'P' for Present, 'A' for Absent" << endl;
+    cout << "Enter 'P' for Present, 'A' for Absent, 'L' for Late" << endl;
     cout << string(50, '-') << endl;
     
-    vector<AttendanceRecord> records;
+    vector<vector<string> > attendanceRows;
     
     for (size_t i = 0; i < enrolledStudents.size(); i++) {
         Student student = findStudentByRoll(enrolledStudents[i]);
@@ -103,168 +120,93 @@ void markAttendance() {
             cin >> status;
             status = toupper(status);
             
-            if (status != 'P' && status != 'A') {
-                cout << "Invalid input! Enter 'P' or 'A': ";
+            if (status != 'P' && status != 'A' && status != 'L') {
+                cout << "Invalid input! Enter 'P', 'A', or 'L': ";
             }
-        } while (status != 'P' && status != 'A');
+        } while (status != 'P' && status != 'A' && status != 'L');
         
-        AttendanceRecord record;
-        record.date = date;
-        record.rollNumber = student.rollNumber;
-        record.courseCode = courseCode;
-        record.status = (status == 'P') ? "Present" : "Absent";
-        records.push_back(record);
+        vector<string> row;
+        row.push_back(student.rollNumber);
+        row.push_back(courseCode);
+        row.push_back(date);
+        row.push_back(string(1, status));
+        attendanceRows.push_back(row);
     }
     
-    // Save all records
+    // Append all rows to attendance_log.txt
     bool success = true;
-    for (size_t i = 0; i < records.size(); i++) {
-        string line = records[i].date + "|" + 
-                     records[i].rollNumber + "|" + 
-                     records[i].courseCode + "|" + 
-                     records[i].status;
-        if (!appendTXT("attendance_log.txt", line)) {
+    for (size_t i = 0; i < attendanceRows.size(); i++) {
+        if (!appendTXT("attendance_log.txt", attendanceRows[i])) {
             success = false;
         }
     }
     
     if (success) {
-        cout << "\nAttendance marked successfully for " << records.size() << " students!" << endl;
+        cout << "\nAttendance marked successfully for " << attendanceRows.size() << " students!" << endl;
         
         // Display summary
-        int presentCount = 0;
-        for (size_t i = 0; i < records.size(); i++) {
-            if (records[i].status == "Present") {
-                presentCount++;
-            }
+        int presentCount = 0, lateCount = 0, absentCount = 0;
+        for (size_t i = 0; i < attendanceRows.size(); i++) {
+            if (attendanceRows[i][3] == "P") presentCount++;
+            else if (attendanceRows[i][3] == "L") lateCount++;
+            else absentCount++;
         }
         cout << "Present: " << presentCount << " students" << endl;
-        cout << "Absent: " << (records.size() - presentCount) << " students" << endl;
+        cout << "Late: " << lateCount << " students" << endl;
+        cout << "Absent: " << absentCount << " students" << endl;
     } else {
         cout << "Error: Failed to save attendance records!" << endl;
     }
 }
 
-// View attendance percentage
-void viewAttendancePercentage() {
-    cout << "\n--- VIEW ATTENDANCE PERCENTAGE ---" << endl;
-    
-    string roll;
-    cout << "Enter Student Roll Number: ";
-    cin >> roll;
-    
-    // Check if student exists
-    Student student = findStudentByRoll(roll);
-    if (student.rollNumber == "NULL") {
-        cout << "Error: Student not found!" << endl;
-        return;
-    }
-    
-    // Get all courses the student is enrolled in
-    vector<string> enrollmentLines = readTXT("enrollments.txt");
-    vector<string> enrolledCourses;
-    
-    for (size_t i = 0; i < enrollmentLines.size(); i++) {
-        stringstream ss(enrollmentLines[i]);
-        string studentRoll, code, status;
-        getline(ss, studentRoll, '|');
-        getline(ss, code, '|');
-        getline(ss, status, '|');
-        
-        if (studentRoll == roll && status == "A") {
-            enrolledCourses.push_back(code);
-        }
-    }
-    
-    if (enrolledCourses.empty()) {
-        cout << "Student is not enrolled in any course!" << endl;
-        return;
-    }
-    
-    cout << "\n--- ATTENDANCE PERCENTAGE FOR " << student.name << " ---" << endl;
-    cout << left << setw(15) << "Course Code" 
-         << setw(35) << "Course Name" 
-         << setw(15) << "Percentage" 
-         << setw(10) << "Status" << endl;
-    cout << string(75, '-') << endl;
-    
-    bool hasShortage = false;
-    
-    for (size_t i = 0; i < enrolledCourses.size(); i++) {
-        Course course = findCourseByCode(enrolledCourses[i]);
-        if (course.courseCode == "NULL") {
-            continue;
-        }
-        
-        double percentage = calculateAttendancePercentage(roll, enrolledCourses[i]);
-        string status = (percentage >= 75.0) ? "OK" : "SHORTAGE";
-        
-        if (percentage < 75.0) {
-            hasShortage = true;
-        }
-        
-        cout << left << setw(15) << course.courseCode
-             << setw(35) << course.courseName
-             << setw(15) << fixed << setprecision(2) << percentage << "%"
-             << setw(10) << status << endl;
-    }
-    
-    if (hasShortage) {
-        cout << "\nWARNING: You have attendance shortage in some courses!" << endl;
-        cout << "Minimum required attendance: 75%" << endl;
-    } else {
-        cout << "\nGood! You have satisfactory attendance in all courses." << endl;
-    }
-}
-
-// View shortage list
-void viewShortageList() {
+// Get shortage list - returns students with attendance < 75%
+void getShortageList() {
     cout << "\n--- ATTENDANCE SHORTAGE LIST ---" << endl;
     
-    vector<string> attendanceLines = readTXT("attendance_log.txt");
-    vector<string> studentRolls;
+    vector<vector<string> > attendanceData = readTXT("attendance_log.txt");
+    vector<vector<string> > enrollmentData = readTXT("enrollments.txt");
+    vector<Student> shortageStudents;
     
-    // Get unique student roll numbers
-    for (size_t i = 0; i < attendanceLines.size(); i++) {
-        AttendanceRecord record = parseAttendanceLine(attendanceLines[i]);
-        
-        bool exists = false;
-        for (size_t j = 0; j < studentRolls.size(); j++) {
-            if (studentRolls[j] == record.rollNumber) {
-                exists = true;
-                break;
+    // Get unique student roll numbers from enrollments
+    vector<string> studentRolls;
+    for (size_t i = 0; i < enrollmentData.size(); i++) {
+        if (enrollmentData[i].size() >= 4 && enrollmentData[i][3] == "enrolled") {
+            bool exists = false;
+            for (size_t j = 0; j < studentRolls.size(); j++) {
+                if (studentRolls[j] == enrollmentData[i][0]) {
+                    exists = true;
+                    break;
+                }
             }
-        }
-        if (!exists) {
-            studentRolls.push_back(record.rollNumber);
+            if (!exists) {
+                studentRolls.push_back(enrollmentData[i][0]);
+            }
         }
     }
     
-    vector<Student> shortageStudents;
-    
+    // Check each student's attendance in each course
     for (size_t i = 0; i < studentRolls.size(); i++) {
         Student student = findStudentByRoll(studentRolls[i]);
         if (student.rollNumber == "NULL") {
             continue;
         }
         
-        // Check all courses for this student
-        vector<string> enrollmentLines = readTXT("enrollments.txt");
-        bool hasShortage = false;
-        
-        for (size_t j = 0; j < enrollmentLines.size(); j++) {
-            stringstream ss(enrollmentLines[j]);
-            string roll, code, status;
-            getline(ss, roll, '|');
-            getline(ss, code, '|');
-            getline(ss, status, '|');
-            
-            if (roll == studentRolls[i] && status == "A") {
-                double percentage = calculateAttendancePercentage(roll, code);
-                if (percentage < 75.0) {
-                    hasShortage = true;
-                    break;
+        // Get courses this student is enrolled in
+        vector<string> studentCourses;
+        for (size_t j = 0; j < enrollmentData.size(); j++) {
+            if (enrollmentData[j].size() >= 4) {
+                if (enrollmentData[j][0] == studentRolls[i] && enrollmentData[j][3] == "enrolled") {
+                    studentCourses.push_back(enrollmentData[j][1]);
                 }
+            }
+        }
+        
+        bool hasShortage = false;
+        for (size_t j = 0; j < studentCourses.size(); j++) {
+            double pct = getAttendancePct(studentRolls[i], studentCourses[j]);
+            if (pct < 75.0) {
+                hasShortage = true;
+                break;
             }
         }
         
@@ -281,74 +223,61 @@ void viewShortageList() {
     cout << "\nStudents with attendance below 75%:" << endl;
     cout << left << setw(15) << "Roll Number" 
          << setw(30) << "Name" 
-         << setw(25) << "Department" << endl;
-    cout << string(70, '-') << endl;
+         << setw(15) << "Department" << endl;
+    cout << string(60, '-') << endl;
     
     for (size_t i = 0; i < shortageStudents.size(); i++) {
         cout << left << setw(15) << shortageStudents[i].rollNumber
              << setw(30) << shortageStudents[i].name
-             << setw(25) << shortageStudents[i].department << endl;
+             << setw(15) << shortageStudents[i].department << endl;
     }
     
     cout << "\nTotal students with shortage: " << shortageStudents.size() << endl;
 }
 
-// Undo last attendance session
-void undoLastAttendance() {
+// Undo last session - restores from backup vector
+bool undoLastSession() {
     cout << "\n--- UNDO LAST ATTENDANCE SESSION ---" << endl;
     
-    vector<string> lines = readTXT("attendance_log.txt");
-    
-    if (lines.empty()) {
-        cout << "No attendance records to undo!" << endl;
-        return;
+    if (!hasBackup || attendanceBackup.empty()) {
+        cout << "No backup available to restore!" << endl;
+        return false;
     }
     
-    // Get the date of the last session (from the last record)
-    string lastDate = parseAttendanceLine(lines[lines.size() - 1]).date;
-    
-    // Find all records with the last date
-    int recordsToRemove = 0;
-    for (int i = lines.size() - 1; i >= 0; i--) {
-        AttendanceRecord record = parseAttendanceLine(lines[i]);
-        if (record.date == lastDate) {
-            recordsToRemove++;
-        } else {
-            break; // Stop at first different date
-        }
-    }
-    
-    cout << "Last attendance session: " << lastDate << endl;
-    cout << "Records to undo: " << recordsToRemove << endl;
-    cout << "Are you sure you want to undo this session? (y/n): ";
-    
+    cout << "Are you sure you want to undo the last attendance session? (y/n): ";
     char confirm;
     cin >> confirm;
     
     if (tolower(confirm) != 'y') {
         cout << "Operation cancelled." << endl;
-        return;
+        return false;
     }
     
-    // Remove the records
-    for (int i = 0; i < recordsToRemove; i++) {
-        lines.pop_back();
-    }
+    // Get header
+    vector<string> header;
+    header.push_back("roll");
+    header.push_back("course_code");
+    header.push_back("date");
+    header.push_back("status");
     
-    if (writeTXT("attendance_log.txt", lines)) {
+    // Rewrite file with backup data
+    if (writeTXT("attendance_log.txt", header, attendanceBackup)) {
         cout << "Last attendance session undone successfully!" << endl;
-        cout << "Removed " << recordsToRemove << " attendance records." << endl;
+        cout << "Restored " << attendanceBackup.size() << " attendance records." << endl;
+        hasBackup = false;
+        return true;
     } else {
-        cout << "Error: Failed to undo attendance session!" << endl;
+        cout << "Error: Failed to restore attendance data!" << endl;
+        return false;
     }
 }
 
-// View daily attendance sheet
-void viewDailyAttendance() {
+// Print daily sheet - formatted console table of all enrolled students
+void printDailySheet() {
     cout << "\n--- DAILY ATTENDANCE SHEET ---" << endl;
     
     string date;
-    cout << "Enter Date (YYYY-MM-DD): ";
+    cout << "Enter Date (DD-MM-YYYY): ";
     cin >> date;
     
     string courseCode;
@@ -362,19 +291,33 @@ void viewDailyAttendance() {
         return;
     }
     
-    vector<string> lines = readTXT("attendance_log.txt");
-    vector<AttendanceRecord> dayRecords;
+    // Get enrolled students
+    vector<vector<string> > enrollmentData = readTXT("enrollments.txt");
+    vector<string> enrolledStudents;
     
-    for (size_t i = 0; i < lines.size(); i++) {
-        AttendanceRecord record = parseAttendanceLine(lines[i]);
-        if (record.date == date && record.courseCode == courseCode) {
-            dayRecords.push_back(record);
+    for (size_t i = 0; i < enrollmentData.size(); i++) {
+        if (enrollmentData[i].size() >= 4) {
+            if (enrollmentData[i][1] == courseCode && enrollmentData[i][3] == "enrolled") {
+                enrolledStudents.push_back(enrollmentData[i][0]);
+            }
         }
     }
     
-    if (dayRecords.empty()) {
-        cout << "No attendance records found for " << date << " in " << courseCode << endl;
+    if (enrolledStudents.empty()) {
+        cout << "No students enrolled in this course!" << endl;
         return;
+    }
+    
+    // Get attendance for this date and course
+    vector<vector<string> > attendanceData = readTXT("attendance_log.txt");
+    vector<vector<string> > dayAttendance;
+    
+    for (size_t i = 0; i < attendanceData.size(); i++) {
+        if (attendanceData[i].size() >= 4) {
+            if (attendanceData[i][2] == date && attendanceData[i][1] == courseCode) {
+                dayAttendance.push_back(attendanceData[i]);
+            }
+        }
     }
     
     cout << "\n--- ATTENDANCE SHEET FOR " << date << " ---" << endl;
@@ -384,27 +327,46 @@ void viewDailyAttendance() {
          << setw(15) << "Status" << endl;
     cout << string(60, '-') << endl;
     
-    int presentCount = 0;
+    int presentCount = 0, lateCount = 0, absentCount = 0;
+    int markedCount = 0;
     
-    for (size_t i = 0; i < dayRecords.size(); i++) {
-        Student student = findStudentByRoll(dayRecords[i].rollNumber);
+    for (size_t i = 0; i < enrolledStudents.size(); i++) {
+        Student student = findStudentByRoll(enrolledStudents[i]);
         if (student.rollNumber == "NULL") {
             continue;
         }
         
+        string status = "Not Marked";
+        for (size_t j = 0; j < dayAttendance.size(); j++) {
+            if (dayAttendance[j][0] == enrolledStudents[i]) {
+                if (dayAttendance[j][3] == "P") {
+                    status = "Present";
+                    presentCount++;
+                } else if (dayAttendance[j][3] == "L") {
+                    status = "Late";
+                    lateCount++;
+                } else if (dayAttendance[j][3] == "A") {
+                    status = "Absent";
+                    absentCount++;
+                }
+                markedCount++;
+                break;
+            }
+        }
+        
         cout << left << setw(15) << student.rollNumber
              << setw(30) << student.name
-             << setw(15) << dayRecords[i].status << endl;
-        
-        if (dayRecords[i].status == "Present") {
-            presentCount++;
-        }
+             << setw(15) << status << endl;
     }
     
     cout << string(60, '-') << endl;
-    cout << "Total Students: " << dayRecords.size() << endl;
+    cout << "Total Students: " << enrolledStudents.size() << endl;
+    cout << "Marked: " << markedCount << endl;
     cout << "Present: " << presentCount << endl;
-    cout << "Absent: " << (dayRecords.size() - presentCount) << endl;
-    cout << "Attendance Percentage: " << fixed << setprecision(2) 
-         << (static_cast<double>(presentCount) / dayRecords.size()) * 100 << "%" << endl;
+    cout << "Late: " << lateCount << endl;
+    cout << "Absent: " << absentCount << endl;
+    if (markedCount > 0) {
+        double attendancePct = (static_cast<double>(presentCount + 0.5 * lateCount) / markedCount) * 100.0;
+        cout << "Attendance Percentage: " << fixed << setprecision(2) << attendancePct << "%" << endl;
+    }
 }

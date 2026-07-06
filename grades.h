@@ -10,56 +10,66 @@ using namespace std;
 struct GradeRecord {
     string rollNumber;
     string courseCode;
-    double quiz1;
-    double quiz2;
-    double quiz3;
-    double quiz4;
-    double quiz5;
-    double assignment;
-    double midterm;
-    double finalExam;
+    double quizMarks[5];      // Up to 5 quiz marks
+    double assignment;         // Assignment marks
+    double midterm;           // Midterm marks (out of 40)
+    double finalExam;         // Final exam marks (out of 60)
+    double weightedTotal;     // Computed weighted total
+    string letterGrade;       // Computed letter grade
+};
+
+// Structure for class statistics
+struct Stats {
+    double highest;
+    double lowest;
+    double mean;
+    double median;
 };
 
 // Function declarations for grade operations
 
 /*
- * Enters marks for a student in a course
+ * Accepts up to 5 quiz marks (uses bestThreeOffFive),
+ * assignment array, mid (40), final (60)
+ * Validates ranges
+ * Stores computed totals
  */
 void enterMarks();
 
 /*
- * Finds and displays the best three quiz scores
+ * Finds and excludes the two lowest values using a loop (no sort)
+ * Returns the average of the remaining
+ * Handles n < 3 edge case
  */
-void viewBestThreeQuizzes();
-
-void viewLetterGrade();
-
-/*
- * Calculates and displays weighted total
- * Quiz: 20%, Assignment: 10%, Midterm: 30%, Final: 40%
- */
-void viewWeightedTotal();
+double bestThreeOffFive(double quizzes[5]);
 
 /*
- * Converts weighted total to letter grade
+ * Applies: quiz*0.10 + asgn*0.10 + mid*0.30 + final*0.50
+ * Returns a double out of 100
  */
-char calculateLetterGrade(double total);
+double computeWeightedTotal(double quizAvg, double assignment, double midterm, double finalExam);
 
 /*
- * Calculates GPA for a student
- * Includes attendance penalty
+ * Maps: >=85 A, >=80 B+, >=70 B, >=65 C+, >=60 C, >=50 D, else F
+ * Returns string
  */
-void viewGPA();
+string getLetterGrade(double total);
 
 /*
- * Applies attendance penalty (reduces grade for low attendance)
+ * Credit-weighted average of GPA points across all courses in a semester
+ * Manual loop — no algorithm library
  */
-double applyAttendancePenalty(const string& roll, const string& courseCode, double total);
+double computeGPA(const string& roll, const string& semester);
 
 /*
- * Displays class statistics (highest, lowest, mean, median)
+ * Returns struct Stats (highest, lowest, mean, median)
  */
-void viewClassStatistics();
+Stats computeClassStats(const string& courseCode);
+
+/*
+ * If getAttendancePct < 75, overrides grade to F regardless of marks
+ */
+string applyAttendancePenalty(const string& roll, const string& courseCode, double total);
 
 /*
  * Parses a grade line from grades.txt
@@ -70,5 +80,10 @@ GradeRecord parseGradeLine(const string& line);
  * Finds grade record for a student in a course
  */
 GradeRecord findGradeRecord(const string& roll, const string& courseCode);
+
+/*
+ * Converts letter grade to GPA points
+ */
+double gradeToPoints(const string& grade);
 
 #endif

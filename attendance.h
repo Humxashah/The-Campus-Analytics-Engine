@@ -8,41 +8,48 @@ using namespace std;
 
 // Structure to hold attendance record
 struct AttendanceRecord {
-    string date;
     string rollNumber;
     string courseCode;
-    string status; // "Present" or "Absent"
+    string date;
+    string status; // "P" for Present, "A" for Absent, "L" for Late
 };
+
+// Global backup vector for undo functionality
+extern vector<vector<string> > attendanceBackup;
+extern bool hasBackup;
 
 // Function declarations for attendance operations
 
 /*
- * Marks attendance for a student in a course
- * Validates student and course existence
+ * Iterates enrolled students, prompts P/A/L for each
+ * Saves a backup of the current attendance vector before writing
+ * Appends rows to attendance_log.txt
  */
 void markAttendance();
 
 /*
- * Calculates and displays attendance percentage for a student
- * Shows total sessions and present days
+ * Computes (present + 0.5 * late) / totalSessions * 100.0
+ * Uses an accumulator loop
+ * Returns double
  */
-void viewAttendancePercentage();
+double getAttendancePct(const string& roll, const string& courseCode);
 
 /*
- * Lists students with attendance below required threshold (75%)
+ * Returns students with attendance < 75%
  */
-void viewShortageList();
+void getShortageList();
 
 /*
- * Undoes the last attendance marking session
- * Removes the most recent attendance records
+ * Restores from backup vector (pre-session snapshot)
+ * Rewrites file
+ * Returns false if no backup exists
  */
-void undoLastAttendance();
+bool undoLastSession();
 
 /*
- * Displays today's attendance sheet for a course
+ * Formatted console table of all enrolled students and their status for the given date
  */
-void viewDailyAttendance();
+void printDailySheet();
 
 /*
  * Parses an attendance line from attendance_log.txt
@@ -50,8 +57,8 @@ void viewDailyAttendance();
 AttendanceRecord parseAttendanceLine(const string& line);
 
 /*
- * Calculates attendance percentage for a student in a course
+ * Saves backup of current attendance data
  */
-double calculateAttendancePercentage(const string& roll, const string& courseCode);
+void saveAttendanceBackup();
 
 #endif

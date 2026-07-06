@@ -11,105 +11,62 @@
 
 using namespace std;
 
-void viewLetterGrade() {
-    cout << "\n--- VIEW LETTER GRADE ---" << endl;
-    
-    string roll;
-    cout << "Enter Student Roll Number: ";
-    cin >> roll;
-    
-    // Check if student exists
-    Student student = findStudentByRoll(roll);
-    if (student.rollNumber == "NULL") {
-        cout << "Error: Student not found!" << endl;
-        return;
-    }
-    
-    string courseCode;
-    cout << "Enter Course Code: ";
-    cin >> courseCode;
-    
-    GradeRecord record = findGradeRecord(roll, courseCode);
-    if (record.rollNumber == "NULL") {
-        cout << "No grade record found for this student in this course!" << endl;
-        return;
-    }
-    
-    // Calculate total
-    double quizzes[5] = {record.quiz1, record.quiz2, record.quiz3, record.quiz4, record.quiz5};
-    
-    for (int i = 0; i < 5; i++) {
-        for (int j = i + 1; j < 5; j++) {
-            if (quizzes[i] < quizzes[j]) {
-                double temp = quizzes[i];
-                quizzes[i] = quizzes[j];
-                quizzes[j] = temp;
-            }
-        }
-    }
-    
-    double quizAverage = (quizzes[0] + quizzes[1] + quizzes[2]) / 3.0;
-    double total = (quizAverage * 0.20) + 
-                  (record.assignment * 0.10) + 
-                  (record.midterm * 0.30) + 
-                  (record.finalExam * 0.40);
-    
-    total = applyAttendancePenalty(roll, courseCode, total);
-    char grade = calculateLetterGrade(total);
-    
-    cout << "\n--- LETTER GRADE ---" << endl;
-    cout << "Student: " << student.name << " (" << roll << ")" << endl;
-    cout << "Course: " << courseCode << endl;
-    cout << "Total: " << fixed << setprecision(2) << total << endl;
-    cout << "Letter Grade: " << grade << endl;
-    cout << "Grade Points: ";
-    switch(grade) {
-        case 'A': cout << "4.0 (Excellent)"; break;
-        case 'B': cout << "3.0 (Good)"; break;
-        case 'C': cout << "2.0 (Average)"; break;
-        case 'D': cout << "1.0 (Below Average)"; break;
-        case 'F': cout << "0.0 (Fail)"; break;
-    }
-    cout << endl;
-}
-
-// Parse grade line
+// Parse grade line from CSV
 GradeRecord parseGradeLine(const string& line) {
     GradeRecord record;
-    stringstream ss(line);
+    vector<string> fields = parseCSVLine(line);
     
-    getline(ss, record.rollNumber, '|');
-    getline(ss, record.courseCode, '|');
-    
-    string temp;
-    getline(ss, temp, '|');
-    record.quiz1 = atof(temp.c_str());
-    getline(ss, temp, '|');
-    record.quiz2 = atof(temp.c_str());
-    getline(ss, temp, '|');
-    record.quiz3 = atof(temp.c_str());
-    getline(ss, temp, '|');
-    record.quiz4 = atof(temp.c_str());
-    getline(ss, temp, '|');
-    record.quiz5 = atof(temp.c_str());
-    getline(ss, temp, '|');
-    record.assignment = atof(temp.c_str());
-    getline(ss, temp, '|');
-    record.midterm = atof(temp.c_str());
-    getline(ss, temp, '|');
-    record.finalExam = atof(temp.c_str());
+    if (fields.size() >= 11) {
+        record.rollNumber = fields[0];
+        record.courseCode = fields[1];
+        
+        // Parse 5 quiz marks
+        for (int i = 0; i < 5; i++) {
+            record.quizMarks[i] = atof(fields[2 + i].c_str());
+        }
+        
+        record.assignment = atof(fields[7].c_str());
+        record.midterm = atof(fields[8].c_str());
+        record.finalExam = atof(fields[9].c_str());
+        record.weightedTotal = atof(fields[10].c_str());
+        
+        if (fields.size() >= 12) {
+            record.letterGrade = fields[11];
+        }
+    }
     
     return record;
 }
 
 // Find grade record
 GradeRecord findGradeRecord(const string& roll, const string& courseCode) {
-    vector<string> lines = readTXT("grades.txt");
+    vector<vector<string> > data = readTXT("grades.txt");
     
-    for (size_t i = 0; i < lines.size(); i++) {
-        GradeRecord record = parseGradeLine(lines[i]);
-        if (record.rollNumber == roll && record.courseCode == courseCode) {
-            return record;
+    for (size_t i = 0; i < data.size(); i++) {
+        if (data[i].size() >= 10) {
+            if (data[i][0] == roll && data[i][1] == courseCode) {
+                GradeRecord record;
+                record.rollNumber = data[i][0];
+                record.courseCode = data[i][1];
+                
+                for (int j = 0; j < 5; j++) {
+                    record.quizMarks[j] = atof(data[i][2 + j].c_str());
+                }
+                
+                record.assignment = atof(data[i][7].c_str());
+                record.midterm = atof(data[i][8].c_str());
+                record.finalExam = atof(data[i][9].c_str());
+                
+                if (data[i].size() >= 11) {
+                    record.weightedTotal = atof(data[i][10].c_str());
+                }
+                
+                if (data[i].size() >= 12) {
+                    record.letterGrade = data[i][11];
+                }
+                
+                return record;
+            }
         }
     }
     
@@ -119,36 +76,198 @@ GradeRecord findGradeRecord(const string& roll, const string& courseCode) {
     return emptyRecord;
 }
 
-// Calculate letter grade
-char calculateLetterGrade(double total) {
-    if (total >= 90.0) return 'A';
-    else if (total >= 80.0) return 'B';
-    else if (total >= 70.0) return 'C';
-    else if (total >= 60.0) return 'D';
-    else return 'F';
-}
-
-// Apply attendance penalty
-double applyAttendancePenalty(const string& roll, const string& courseCode, double total) {
-    double attendance = calculateAttendancePercentage(roll, courseCode);
-    
-    if (attendance < 75.0) {
-        // Penalty: 5% reduction for every 10% below 75%
-        double shortage = 75.0 - attendance;
-        int penaltyLevels = static_cast<int>(shortage / 10.0) + 1;
-        double penalty = penaltyLevels * 5.0;
-        double penalizedTotal = total - penalty;
-        
-        // Minimum grade is 0
-        if (penalizedTotal < 0) penalizedTotal = 0;
-        
-        return penalizedTotal;
+// Best three of five - finds and excludes two lowest using loop (no sort)
+double bestThreeOffFive(double quizzes[5]) {
+    // Edge case: if less than 3 quizzes, average what's available
+    int validCount = 0;
+    for (int i = 0; i < 5; i++) {
+        if (quizzes[i] >= 0) {
+            validCount++;
+        }
     }
     
-    return total;
+    if (validCount < 3) {
+        // Handle n < 3 edge case: average available quizzes
+        double sum = 0;
+        for (int i = 0; i < 5; i++) {
+            if (quizzes[i] >= 0) {
+                sum += quizzes[i];
+            }
+        }
+        return (validCount > 0) ? sum / validCount : 0.0;
+    }
+    
+    // Find two lowest values using manual loop (no sort)
+    // Initialize with first valid quiz
+    int lowest1 = -1, lowest2 = -1;
+    
+    for (int i = 0; i < 5; i++) {
+        if (quizzes[i] < 0) continue; // Skip invalid quizzes
+        
+        if (lowest1 == -1 || quizzes[i] < quizzes[lowest1]) {
+            lowest2 = lowest1;
+            lowest1 = i;
+        } else if (lowest2 == -1 || quizzes[i] < quizzes[lowest2]) {
+            lowest2 = i;
+        }
+    }
+    
+    // Calculate sum of best three
+    double sum = 0;
+    int count = 0;
+    for (int i = 0; i < 5; i++) {
+        if (quizzes[i] >= 0 && i != lowest1 && i != lowest2) {
+            sum += quizzes[i];
+            count++;
+        }
+    }
+    
+    return (count > 0) ? sum / count : 0.0;
 }
 
-// Enter marks
+// Compute weighted total: quiz*0.10 + asgn*0.10 + mid*0.30 + final*0.50
+double computeWeightedTotal(double quizAvg, double assignment, double midterm, double finalExam) {
+    return (quizAvg * 0.10) + (assignment * 0.10) + (midterm * 0.30) + (finalExam * 0.50);
+}
+
+// Get letter grade: >=85 A, >=80 B+, >=70 B, >=65 C+, >=60 C, >=50 D, else F
+string getLetterGrade(double total) {
+    if (total >= 85.0) {
+        return "A";
+    } else if (total >= 80.0) {
+        return "B+";
+    } else if (total >= 70.0) {
+        return "B";
+    } else if (total >= 65.0) {
+        return "C+";
+    } else if (total >= 60.0) {
+        return "C";
+    } else if (total >= 50.0) {
+        return "D";
+    } else {
+        return "F";
+    }
+}
+
+// Convert letter grade to GPA points
+double gradeToPoints(const string& grade) {
+    if (grade == "A") return 4.0;
+    else if (grade == "B+") return 3.5;
+    else if (grade == "B") return 3.0;
+    else if (grade == "C+") return 2.5;
+    else if (grade == "C") return 2.0;
+    else if (grade == "D") return 1.0;
+    else return 0.0; // F
+}
+
+// Apply attendance penalty - if attendance < 75, overrides grade to F
+string applyAttendancePenalty(const string& roll, const string& courseCode, double total) {
+    double attendancePct = getAttendancePct(roll, courseCode);
+    
+    if (attendancePct < 75.0) {
+        return "F"; // Override to F regardless of marks
+    }
+    
+    return getLetterGrade(total);
+}
+
+// Credit-weighted average of GPA points across all courses in a semester
+double computeGPA(const string& roll, const string& semester) {
+    vector<vector<string> > enrollmentData = readTXT("enrollments.txt");
+    vector<vector<string> > gradeData = readTXT("grades.txt");
+    
+    double totalGradePoints = 0.0;
+    int totalCredits = 0;
+    
+    // Manual loop through enrollments
+    for (size_t i = 0; i < enrollmentData.size(); i++) {
+        if (enrollmentData[i].size() >= 4) {
+            if (enrollmentData[i][0] == roll && 
+                enrollmentData[i][2] == semester && 
+                enrollmentData[i][3] == "enrolled") {
+                
+                string courseCode = enrollmentData[i][1];
+                Course course = findCourseByCode(courseCode);
+                if (course.courseCode == "NULL") {
+                    continue;
+                }
+                
+                // Find grade for this course
+                GradeRecord grade = findGradeRecord(roll, courseCode);
+                if (grade.rollNumber != "NULL") {
+                    double points = gradeToPoints(grade.letterGrade);
+                    totalGradePoints += points * course.creditHours;
+                    totalCredits += course.creditHours;
+                }
+            }
+        }
+    }
+    
+    if (totalCredits == 0) {
+        return 0.0;
+    }
+    
+    return totalGradePoints / totalCredits;
+}
+
+// Compute class statistics: highest, lowest, mean, median
+Stats computeClassStats(const string& courseCode) {
+    Stats stats;
+    stats.highest = 0;
+    stats.lowest = 100;
+    stats.mean = 0;
+    stats.median = 0;
+    
+    vector<vector<string> > gradeData = readTXT("grades.txt");
+    vector<double> totals;
+    double sum = 0.0;
+    
+    // Collect all weighted totals for this course
+    for (size_t i = 0; i < gradeData.size(); i++) {
+        if (gradeData[i].size() >= 11) {
+            if (gradeData[i][1] == courseCode) {
+                double total = atof(gradeData[i][10].c_str());
+                totals.push_back(total);
+                sum += total;
+                
+                if (total > stats.highest) stats.highest = total;
+                if (total < stats.lowest) stats.lowest = total;
+            }
+        }
+    }
+    
+    if (totals.empty()) {
+        stats.highest = 0;
+        stats.lowest = 0;
+        stats.mean = 0;
+        stats.median = 0;
+        return stats;
+    }
+    
+    // Calculate mean
+    stats.mean = sum / totals.size();
+    
+    // Calculate median using manual sort (selection sort)
+    for (size_t i = 0; i < totals.size(); i++) {
+        for (size_t j = i + 1; j < totals.size(); j++) {
+            if (totals[i] > totals[j]) {
+                double temp = totals[i];
+                totals[i] = totals[j];
+                totals[j] = temp;
+            }
+        }
+    }
+    
+    if (totals.size() % 2 == 0) {
+        stats.median = (totals[totals.size()/2 - 1] + totals[totals.size()/2]) / 2.0;
+    } else {
+        stats.median = totals[totals.size()/2];
+    }
+    
+    return stats;
+}
+
+// Enter marks - accepts up to 5 quizzes, assignment, mid (40), final (60)
 void enterMarks() {
     cout << "\n--- ENTER MARKS ---" << endl;
     
@@ -183,61 +302,26 @@ void enterMarks() {
     record.rollNumber = roll;
     record.courseCode = courseCode;
     
-    // Enter marks with validation
-    cout << "\nEnter marks (0-100):" << endl;
+    // Enter 5 quiz marks
+    cout << "\nEnter Quiz Marks (0-100):" << endl;
+    for (int i = 0; i < 5; i++) {
+        do {
+            cout << "Quiz " << (i + 1) << ": ";
+            cin >> record.quizMarks[i];
+            if (cin.fail() || record.quizMarks[i] < 0 || record.quizMarks[i] > 100) {
+                cin.clear();
+                cin.ignore(numeric_limits<streamsize>::max(), '\n');
+                cout << "Error: Enter a number between 0 and 100!" << endl;
+                record.quizMarks[i] = -1; // Invalid
+            } else {
+                break;
+            }
+        } while (true);
+    }
     
+    // Enter assignment marks
     do {
-        cout << "Quiz 1: ";
-        cin >> record.quiz1;
-        if (cin.fail() || record.quiz1 < 0 || record.quiz1 > 100) {
-            cin.clear();
-            cin.ignore(numeric_limits<streamsize>::max(), '\n');
-            cout << "Error: Enter a number between 0 and 100!" << endl;
-        } else break;
-    } while (true);
-    
-    do {
-        cout << "Quiz 2: ";
-        cin >> record.quiz2;
-        if (cin.fail() || record.quiz2 < 0 || record.quiz2 > 100) {
-            cin.clear();
-            cin.ignore(numeric_limits<streamsize>::max(), '\n');
-            cout << "Error: Enter a number between 0 and 100!" << endl;
-        } else break;
-    } while (true);
-    
-    do {
-        cout << "Quiz 3: ";
-        cin >> record.quiz3;
-        if (cin.fail() || record.quiz3 < 0 || record.quiz3 > 100) {
-            cin.clear();
-            cin.ignore(numeric_limits<streamsize>::max(), '\n');
-            cout << "Error: Enter a number between 0 and 100!" << endl;
-        } else break;
-    } while (true);
-    
-    do {
-        cout << "Quiz 4: ";
-        cin >> record.quiz4;
-        if (cin.fail() || record.quiz4 < 0 || record.quiz4 > 100) {
-            cin.clear();
-            cin.ignore(numeric_limits<streamsize>::max(), '\n');
-            cout << "Error: Enter a number between 0 and 100!" << endl;
-        } else break;
-    } while (true);
-    
-    do {
-        cout << "Quiz 5: ";
-        cin >> record.quiz5;
-        if (cin.fail() || record.quiz5 < 0 || record.quiz5 > 100) {
-            cin.clear();
-            cin.ignore(numeric_limits<streamsize>::max(), '\n');
-            cout << "Error: Enter a number between 0 and 100!" << endl;
-        } else break;
-    } while (true);
-    
-    do {
-        cout << "Assignment: ";
+        cout << "Assignment (0-100): ";
         cin >> record.assignment;
         if (cin.fail() || record.assignment < 0 || record.assignment > 100) {
             cin.clear();
@@ -246,379 +330,79 @@ void enterMarks() {
         } else break;
     } while (true);
     
+    // Enter midterm marks (out of 40)
     do {
-        cout << "Midterm: ";
+        cout << "Midterm (0-40): ";
         cin >> record.midterm;
-        if (cin.fail() || record.midterm < 0 || record.midterm > 100) {
+        if (cin.fail() || record.midterm < 0 || record.midterm > 40) {
             cin.clear();
             cin.ignore(numeric_limits<streamsize>::max(), '\n');
-            cout << "Error: Enter a number between 0 and 100!" << endl;
+            cout << "Error: Enter a number between 0 and 40!" << endl;
         } else break;
     } while (true);
     
+    // Enter final exam marks (out of 60)
     do {
-        cout << "Final Exam: ";
+        cout << "Final Exam (0-60): ";
         cin >> record.finalExam;
-        if (cin.fail() || record.finalExam < 0 || record.finalExam > 100) {
+        if (cin.fail() || record.finalExam < 0 || record.finalExam > 60) {
             cin.clear();
             cin.ignore(numeric_limits<streamsize>::max(), '\n');
-            cout << "Error: Enter a number between 0 and 100!" << endl;
+            cout << "Error: Enter a number between 0 and 60!" << endl;
         } else break;
     } while (true);
+    
+    // Calculate best three quiz average
+    double quizAvg = bestThreeOffFive(record.quizMarks);
+    
+    // Compute weighted total
+    record.weightedTotal = computeWeightedTotal(quizAvg, record.assignment, record.midterm, record.finalExam);
+    
+    // Apply attendance penalty
+    record.letterGrade = applyAttendancePenalty(roll, courseCode, record.weightedTotal);
+    
+    // If attendance penalty not applied, use computed letter grade
+    if (record.letterGrade.empty()) {
+        record.letterGrade = getLetterGrade(record.weightedTotal);
+    }
     
     // Save grade record
-    stringstream ss;
-    ss << record.rollNumber << "|" << record.courseCode << "|"
-       << record.quiz1 << "|" << record.quiz2 << "|" << record.quiz3 << "|"
-       << record.quiz4 << "|" << record.quiz5 << "|" << record.assignment << "|"
-       << record.midterm << "|" << record.finalExam;
+    vector<string> row;
+    row.push_back(record.rollNumber);
+    row.push_back(record.courseCode);
     
-    if (appendTXT("grades.txt", ss.str())) {
+    for (int i = 0; i < 5; i++) {
+        stringstream ss;
+        ss << record.quizMarks[i];
+        row.push_back(ss.str());
+    }
+    
+    stringstream asgn, mid, finalE, total, grade;
+    asgn << record.assignment;
+    mid << record.midterm;
+    finalE << record.finalExam;
+    total << record.weightedTotal;
+    
+    row.push_back(asgn.str());
+    row.push_back(mid.str());
+    row.push_back(finalE.str());
+    row.push_back(total.str());
+    row.push_back(record.letterGrade);
+    
+    if (appendTXT("grades.txt", row)) {
         cout << "\nMarks entered successfully!" << endl;
+        cout << "Quiz Average (Best 3): " << fixed << setprecision(2) << quizAvg << endl;
+        cout << "Weighted Total: " << fixed << setprecision(2) << record.weightedTotal << endl;
+        cout << "Letter Grade: " << record.letterGrade << endl;
+        
+        if (record.letterGrade == "F") {
+            double attPct = getAttendancePct(roll, courseCode);
+            if (attPct < 75.0) {
+                cout << "Note: Grade set to F due to attendance shortage (" 
+                     << fixed << setprecision(2) << attPct << "%)" << endl;
+            }
+        }
     } else {
         cout << "Error: Failed to save marks!" << endl;
     }
-}
-
-// View best three quizzes
-void viewBestThreeQuizzes() {
-    cout << "\n--- BEST THREE QUIZZES ---" << endl;
-    
-    string roll;
-    cout << "Enter Student Roll Number: ";
-    cin >> roll;
-    
-    // Check if student exists
-    Student student = findStudentByRoll(roll);
-    if (student.rollNumber == "NULL") {
-        cout << "Error: Student not found!" << endl;
-        return;
-    }
-    
-    string courseCode;
-    cout << "Enter Course Code: ";
-    cin >> courseCode;
-    
-    GradeRecord record = findGradeRecord(roll, courseCode);
-    if (record.rollNumber == "NULL") {
-        cout << "No grade record found for this student in this course!" << endl;
-        return;
-    }
-    
-    // Store quiz scores in array
-    double quizzes[5] = {record.quiz1, record.quiz2, record.quiz3, record.quiz4, record.quiz5};
-    
-    // Find best three using selection sort (descending)
-    for (int i = 0; i < 5; i++) {
-        for (int j = i + 1; j < 5; j++) {
-            if (quizzes[i] < quizzes[j]) {
-                double temp = quizzes[i];
-                quizzes[i] = quizzes[j];
-                quizzes[j] = temp;
-            }
-        }
-    }
-    
-    cout << "\nBest three quiz scores:" << endl;
-    cout << "1st: " << quizzes[0] << endl;
-    cout << "2nd: " << quizzes[1] << endl;
-    cout << "3rd: " << quizzes[2] << endl;
-    cout << "Average of best three: " << fixed << setprecision(2) 
-         << (quizzes[0] + quizzes[1] + quizzes[2]) / 3.0 << endl;
-}
-
-// View weighted total
-void viewWeightedTotal() {
-    cout << "\n--- VIEW WEIGHTED TOTAL ---" << endl;
-    
-    string roll;
-    cout << "Enter Student Roll Number: ";
-    cin >> roll;
-    
-    // Check if student exists
-    Student student = findStudentByRoll(roll);
-    if (student.rollNumber == "NULL") {
-        cout << "Error: Student not found!" << endl;
-        return;
-    }
-    
-    string courseCode;
-    cout << "Enter Course Code: ";
-    cin >> courseCode;
-    
-    GradeRecord record = findGradeRecord(roll, courseCode);
-    if (record.rollNumber == "NULL") {
-        cout << "No grade record found for this student in this course!" << endl;
-        return;
-    }
-    
-    // Calculate quiz average (best three)
-    double quizzes[5] = {record.quiz1, record.quiz2, record.quiz3, record.quiz4, record.quiz5};
-    
-    // Sort descending
-    for (int i = 0; i < 5; i++) {
-        for (int j = i + 1; j < 5; j++) {
-            if (quizzes[i] < quizzes[j]) {
-                double temp = quizzes[i];
-                quizzes[i] = quizzes[j];
-                quizzes[j] = temp;
-            }
-        }
-    }
-    
-    double quizAverage = (quizzes[0] + quizzes[1] + quizzes[2]) / 3.0;
-    double weightedQuiz = quizAverage * 0.20; // 20%
-    double weightedAssignment = record.assignment * 0.10; // 10%
-    double weightedMidterm = record.midterm * 0.30; // 30%
-    double weightedFinal = record.finalExam * 0.40; // 40%
-    
-    double total = weightedQuiz + weightedAssignment + weightedMidterm + weightedFinal;
-    
-    cout << "\n--- WEIGHTED TOTAL CALCULATION ---" << endl;
-    cout << "Student: " << student.name << " (" << roll << ")" << endl;
-    cout << "Course: " << courseCode << endl;
-    cout << "\nComponent Weights:" << endl;
-    cout << "Quiz (best 3 average): " << fixed << setprecision(2) << quizAverage << " × 0.20 = " << weightedQuiz << endl;
-    cout << "Assignment: " << record.assignment << " × 0.10 = " << weightedAssignment << endl;
-    cout << "Midterm: " << record.midterm << " × 0.30 = " << weightedMidterm << endl;
-    cout << "Final: " << record.finalExam << " × 0.40 = " << weightedFinal << endl;
-    cout << string(40, '-') << endl;
-    cout << "Total (before penalty): " << total << endl;
-    
-    // Apply attendance penalty
-    double penalizedTotal = applyAttendancePenalty(roll, courseCode, total);
-    if (penalizedTotal < total) {
-        cout << "Attendance penalty applied!" << endl;
-        cout << "Final Total: " << penalizedTotal << endl;
-    }
-    
-    char grade = calculateLetterGrade(penalizedTotal);
-    cout << "Letter Grade: " << grade << endl;
-}
-
-// View GPA
-void viewGPA() {
-    cout << "\n--- VIEW GPA ---" << endl;
-    
-    string roll;
-    cout << "Enter Student Roll Number: ";
-    cin >> roll;
-    
-    // Check if student exists
-    Student student = findStudentByRoll(roll);
-    if (student.rollNumber == "NULL") {
-        cout << "Error: Student not found!" << endl;
-        return;
-    }
-    
-    vector<string> gradeLines = readTXT("grades.txt");
-    vector<GradeRecord> studentGrades;
-    
-    // Get all grades for this student
-    for (size_t i = 0; i < gradeLines.size(); i++) {
-        GradeRecord record = parseGradeLine(gradeLines[i]);
-        if (record.rollNumber == roll) {
-            studentGrades.push_back(record);
-        }
-    }
-    
-    if (studentGrades.empty()) {
-        cout << "No grade records found for this student!" << endl;
-        return;
-    }
-    
-    cout << "\n--- GPA CALCULATION FOR " << student.name << " ---" << endl;
-    cout << left << setw(15) << "Course" 
-         << setw(15) << "Credits" 
-         << setw(15) << "Total" 
-         << setw(10) << "Grade" 
-         << setw(10) << "Points" << endl;
-    cout << string(65, '-') << endl;
-    
-    double totalPoints = 0;
-    int totalCredits = 0;
-    double gpa = 0.0;
-    
-    for (size_t i = 0; i < studentGrades.size(); i++) {
-        Course course = findCourseByCode(studentGrades[i].courseCode);
-        if (course.courseCode == "NULL") {
-            continue;
-        }
-        
-        // Calculate total
-        double quizzes[5] = {studentGrades[i].quiz1, studentGrades[i].quiz2, 
-                            studentGrades[i].quiz3, studentGrades[i].quiz4, 
-                            studentGrades[i].quiz5};
-        
-        for (int j = 0; j < 5; j++) {
-            for (int k = j + 1; k < 5; k++) {
-                if (quizzes[j] < quizzes[k]) {
-                    double temp = quizzes[j];
-                    quizzes[j] = quizzes[k];
-                    quizzes[k] = temp;
-                }
-            }
-        }
-        
-        double quizAverage = (quizzes[0] + quizzes[1] + quizzes[2]) / 3.0;
-        double total = (quizAverage * 0.20) + 
-                      (studentGrades[i].assignment * 0.10) + 
-                      (studentGrades[i].midterm * 0.30) + 
-                      (studentGrades[i].finalExam * 0.40);
-        
-        // Apply attendance penalty
-        total = applyAttendancePenalty(roll, studentGrades[i].courseCode, total);
-        
-        char grade = calculateLetterGrade(total);
-        
-        // Convert letter grade to grade points
-        double gradePoints = 0.0;
-        switch(grade) {
-            case 'A': gradePoints = 4.0; break;
-            case 'B': gradePoints = 3.0; break;
-            case 'C': gradePoints = 2.0; break;
-            case 'D': gradePoints = 1.0; break;
-            case 'F': gradePoints = 0.0; break;
-        }
-        
-        cout << left << setw(15) << course.courseCode
-             << setw(15) << course.creditHours
-             << setw(15) << fixed << setprecision(2) << total
-             << setw(10) << grade
-             << setw(10) << fixed << setprecision(2) << gradePoints << endl;
-        
-        totalPoints += gradePoints * course.creditHours;
-        totalCredits += course.creditHours;
-    }
-    
-    if (totalCredits > 0) {
-        gpa = totalPoints / totalCredits;
-        cout << string(65, '-') << endl;
-        cout << "Total Credits: " << totalCredits << endl;
-        cout << "Total Grade Points: " << fixed << setprecision(2) << totalPoints << endl;
-        cout << "GPA: " << fixed << setprecision(2) << gpa << endl;
-    } else {
-        cout << "No courses with credit hours found!" << endl;
-    }
-}
-
-// View class statistics
-void viewClassStatistics() {
-    cout << "\n--- CLASS STATISTICS ---" << endl;
-    
-    string courseCode;
-    cout << "Enter Course Code: ";
-    cin >> courseCode;
-    
-    // Check if course exists
-    Course course = findCourseByCode(courseCode);
-    if (course.courseCode == "NULL") {
-        cout << "Error: Course not found!" << endl;
-        return;
-    }
-    
-    vector<string> gradeLines = readTXT("grades.txt");
-    vector<double> totals;
-    
-    // Calculate totals for all students in this course
-    for (size_t i = 0; i < gradeLines.size(); i++) {
-        GradeRecord record = parseGradeLine(gradeLines[i]);
-        if (record.courseCode == courseCode) {
-            // Calculate total
-            double quizzes[5] = {record.quiz1, record.quiz2, record.quiz3, record.quiz4, record.quiz5};
-            
-            for (int j = 0; j < 5; j++) {
-                for (int k = j + 1; k < 5; k++) {
-                    if (quizzes[j] < quizzes[k]) {
-                        double temp = quizzes[j];
-                        quizzes[j] = quizzes[k];
-                        quizzes[k] = temp;
-                    }
-                }
-            }
-            
-            double quizAverage = (quizzes[0] + quizzes[1] + quizzes[2]) / 3.0;
-            double total = (quizAverage * 0.20) + 
-                          (record.assignment * 0.10) + 
-                          (record.midterm * 0.30) + 
-                          (record.finalExam * 0.40);
-            
-            // Apply attendance penalty
-            total = applyAttendancePenalty(record.rollNumber, courseCode, total);
-            
-            totals.push_back(total);
-        }
-    }
-    
-    if (totals.empty()) {
-        cout << "No grade records found for this course!" << endl;
-        return;
-    }
-    
-    // Calculate statistics
-    // Find highest and lowest
-    double highest = totals[0];
-    double lowest = totals[0];
-    double sum = 0;
-    
-    for (size_t i = 0; i < totals.size(); i++) {
-        if (totals[i] > highest) highest = totals[i];
-        if (totals[i] < lowest) lowest = totals[i];
-        sum += totals[i];
-    }
-    
-    double mean = sum / totals.size();
-    
-    // Calculate median (sort first)
-    for (size_t i = 0; i < totals.size(); i++) {
-        for (size_t j = i + 1; j < totals.size(); j++) {
-            if (totals[i] > totals[j]) {
-                double temp = totals[i];
-                totals[i] = totals[j];
-                totals[j] = temp;
-            }
-        }
-    }
-    
-    double median;
-    if (totals.size() % 2 == 0) {
-        median = (totals[totals.size()/2 - 1] + totals[totals.size()/2]) / 2.0;
-    } else {
-        median = totals[totals.size()/2];
-    }
-    
-    // Display statistics
-    cout << "\n--- CLASS STATISTICS FOR " << courseCode << " ---" << endl;
-    cout << "Course: " << course.courseName << endl;
-    cout << "Total Students: " << totals.size() << endl;
-    cout << string(40, '-') << endl;
-    cout << "Highest Score: " << fixed << setprecision(2) << highest << endl;
-    cout << "Lowest Score: " << fixed << setprecision(2) << lowest << endl;
-    cout << "Mean Score: " << fixed << setprecision(2) << mean << endl;
-    cout << "Median Score: " << fixed << setprecision(2) << median << endl;
-    
-    // Grade distribution
-    int aCount = 0, bCount = 0, cCount = 0, dCount = 0, fCount = 0;
-    for (size_t i = 0; i < totals.size(); i++) {
-        char grade = calculateLetterGrade(totals[i]);
-        switch(grade) {
-            case 'A': aCount++; break;
-            case 'B': bCount++; break;
-            case 'C': cCount++; break;
-            case 'D': dCount++; break;
-            case 'F': fCount++; break;
-        }
-    }
-    
-    cout << "\nGrade Distribution:" << endl;
-    cout << "A: " << aCount << " (" << fixed << setprecision(1) 
-         << (static_cast<double>(aCount)/totals.size()*100) << "%)" << endl;
-    cout << "B: " << bCount << " (" << fixed << setprecision(1) 
-         << (static_cast<double>(bCount)/totals.size()*100) << "%)" << endl;
-    cout << "C: " << cCount << " (" << fixed << setprecision(1) 
-         << (static_cast<double>(cCount)/totals.size()*100) << "%)" << endl;
-    cout << "D: " << dCount << " (" << fixed << setprecision(1) 
-         << (static_cast<double>(dCount)/totals.size()*100) << "%)" << endl;
-    cout << "F: " << fCount << " (" << fixed << setprecision(1) 
-         << (static_cast<double>(fCount)/totals.size()*100) << "%)" << endl;
 }
