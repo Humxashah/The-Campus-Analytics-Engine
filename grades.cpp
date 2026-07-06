@@ -11,6 +11,68 @@
 
 using namespace std;
 
+void viewLetterGrade() {
+    cout << "\n--- VIEW LETTER GRADE ---" << endl;
+    
+    string roll;
+    cout << "Enter Student Roll Number: ";
+    cin >> roll;
+    
+    // Check if student exists
+    Student student = findStudentByRoll(roll);
+    if (student.rollNumber == "NULL") {
+        cout << "Error: Student not found!" << endl;
+        return;
+    }
+    
+    string courseCode;
+    cout << "Enter Course Code: ";
+    cin >> courseCode;
+    
+    GradeRecord record = findGradeRecord(roll, courseCode);
+    if (record.rollNumber == "NULL") {
+        cout << "No grade record found for this student in this course!" << endl;
+        return;
+    }
+    
+    // Calculate total
+    double quizzes[5] = {record.quiz1, record.quiz2, record.quiz3, record.quiz4, record.quiz5};
+    
+    for (int i = 0; i < 5; i++) {
+        for (int j = i + 1; j < 5; j++) {
+            if (quizzes[i] < quizzes[j]) {
+                double temp = quizzes[i];
+                quizzes[i] = quizzes[j];
+                quizzes[j] = temp;
+            }
+        }
+    }
+    
+    double quizAverage = (quizzes[0] + quizzes[1] + quizzes[2]) / 3.0;
+    double total = (quizAverage * 0.20) + 
+                  (record.assignment * 0.10) + 
+                  (record.midterm * 0.30) + 
+                  (record.finalExam * 0.40);
+    
+    total = applyAttendancePenalty(roll, courseCode, total);
+    char grade = calculateLetterGrade(total);
+    
+    cout << "\n--- LETTER GRADE ---" << endl;
+    cout << "Student: " << student.name << " (" << roll << ")" << endl;
+    cout << "Course: " << courseCode << endl;
+    cout << "Total: " << fixed << setprecision(2) << total << endl;
+    cout << "Letter Grade: " << grade << endl;
+    cout << "Grade Points: ";
+    switch(grade) {
+        case 'A': cout << "4.0 (Excellent)"; break;
+        case 'B': cout << "3.0 (Good)"; break;
+        case 'C': cout << "2.0 (Average)"; break;
+        case 'D': cout << "1.0 (Below Average)"; break;
+        case 'F': cout << "0.0 (Fail)"; break;
+    }
+    cout << endl;
+}
+
 // Parse grade line
 GradeRecord parseGradeLine(const string& line) {
     GradeRecord record;
