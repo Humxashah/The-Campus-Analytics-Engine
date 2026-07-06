@@ -12,50 +12,49 @@ struct Student {
     string name;
     string department;
     double cgpa;
-    string status; // "active" or "deleted"
+    string status; // "active" or "inactive"
 };
 
 // Function declarations for student operations
 
 /*
  * Adds a new student to the system
- * Validates roll number, name, and CGPA
- * Checks for duplicates
+ * Validates roll format BSAI-YY-XXX using substr and character checks
+ * Checks for no duplicates
+ * Validates name has no digits
+ * CGPA in [0.0, 4.0]
+ * Appends to students.txt
  */
 void addStudent();
 
 /*
- * Searches for a student by roll number
- * Displays student information if found
+ * Searches for student by roll number
+ * Returns student details or empty if student ID is not available
  */
-void searchStudentByRoll();
+void searchByName();
 
 /*
- * Searches for students by name (partial match)
- * Displays all matching students
- */
-void searchStudentByName();
-
-/*
- * Updates student information (name, department, CGPA)
- * Requires roll number to identify the student
+ * Updates student information
+ * Loads file, finds row, updates specified field (not roll)
+ * Rewrites file
  */
 void updateStudent();
 
 /*
- * Soft deletes a student (marks status as "deleted")
- * The student record remains in the file but is not shown in active listings
+ * Soft deletes a student
+ * Sets status field to 'inactive'
+ * Does not remove the row physically
  */
-void softDeleteStudent();
+void softDelete();
 
 /*
- * Displays all active students in a formatted table
- * Uses selection sort to sort by roll number
+ * Returns all active students sorted by roll number using selection sort
  */
-void viewActiveStudents();
+void listActiveStudents();
 
 /*
- * Validates if a roll number is in correct format (7 digits)
+ * Validates roll number format: BSAI-YY-XXX
+ * Where YY are digits and XXX are digits
  */
 bool validateRollNumber(const string& roll);
 
@@ -65,7 +64,7 @@ bool validateRollNumber(const string& roll);
 bool isDuplicateStudent(const string& roll);
 
 /*
- * Validates student name (only alphabets and spaces)
+ * Validates student name (no digits allowed)
  */
 bool validateName(const string& name);
 

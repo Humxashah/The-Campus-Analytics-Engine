@@ -19,32 +19,57 @@ struct Course {
 struct Enrollment {
     string rollNumber;
     string courseCode;
-    string status; // "A" for active, "D" for dropped
+    string semester;
+    string status; // "enrolled" or "dropped"
+};
+
+// Enum for enrollment result
+enum EnrollResult {
+    ENROLL_SUCCESS,
+    ENROLL_STUDENT_NOT_ACTIVE,
+    ENROLL_COURSE_NOT_FOUND,
+    ENROLL_NO_SEATS,
+    ENROLL_ALREADY_ENROLLED,
+    ENROLL_CREDIT_LIMIT_EXCEEDED,
+    ENROLL_PREREQUISITE_NOT_MET
 };
 
 // Function declarations for course operations
 
 /*
  * Enrolls a student in a course
- * Checks prerequisites, seat availability, credit hours limit
- * Prevents duplicate enrollment
+ * Checks: student active, course exists, seats > enrolled count,
+ * student not already enrolled, credit load <= 21, prerequisite passed
+ * Returns EnrollResult with success/failure reason
  */
-void enrollStudent();
+EnrollResult enrollStudent();
 
 /*
  * Drops a course for a student
- * Updates enrollment status to "D"
+ * Only permitted if no attendance rows exist for this student+course+semester
+ * Updates enrollment status to 'dropped'
  */
 void dropCourse();
 
 /*
- * Calculates and displays total credit hours for a student
- * Checks if within 21 credit hours limit
+ * Sums credit hours of all active enrollments for the given semester
+ * Uses nested loop over enrollments and courses files
  */
-void viewCreditLoad();
+int getCreditLoad(const string& roll, const string& semester);
 
 /*
- * Validates if a course has available seats
+ * Looks up the prereq field of the course
+ * If not NONE, checks the grades file to confirm the student has a non-F grade
+ */
+bool checkPrerequisite(const string& roll, const string& courseCode);
+
+/*
+ * Returns list of all active enrolled students in a course
+ */
+void listEnrolledStudents();
+
+/*
+ * Checks if a course has available seats
  */
 bool checkSeatAvailability(const string& courseCode);
 
@@ -52,16 +77,6 @@ bool checkSeatAvailability(const string& courseCode);
  * Checks if a student is already enrolled in a course
  */
 bool isDuplicateEnrollment(const string& roll, const string& courseCode);
-
-/*
- * Checks if a student has completed the prerequisite
- */
-bool checkPrerequisite(const string& roll, const string& courseCode);
-
-/*
- * Lists all students enrolled in a specific course
- */
-void listEnrolledStudents();
 
 /*
  * Parses a course line from courses.txt
@@ -74,8 +89,8 @@ Course parseCourseLine(const string& line);
 Course findCourseByCode(const string& courseCode);
 
 /*
- * Calculates total credit hours for a student
+ * Converts EnrollResult enum to string message
  */
-int calculateTotalCredits(const string& roll);
+string getEnrollResultMessage(EnrollResult result);
 
 #endif

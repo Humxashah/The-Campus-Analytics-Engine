@@ -11,18 +11,15 @@ using namespace std;
 // Parse a line from students.txt into a Student struct
 Student parseStudentLine(const string& line) {
     Student student;
-    stringstream ss(line);
+    vector<string> fields = parseCSVLine(line);
     
-    // Extract fields separated by '|'
-    getline(ss, student.rollNumber, '|');
-    getline(ss, student.name, '|');
-    getline(ss, student.department, '|');
-    
-    string cgpaStr;
-    getline(ss, cgpaStr, '|');
-    student.cgpa = atof(cgpaStr.c_str());
-    
-    getline(ss, student.status, '|');
+    if (fields.size() >= 5) {
+        student.rollNumber = fields[0];
+        student.name = fields[1];
+        student.department = fields[2];
+        student.cgpa = atof(fields[3].c_str());
+        student.status = fields[4];
+    }
     
     return student;
 }
@@ -30,26 +27,44 @@ Student parseStudentLine(const string& line) {
 // Convert Student struct to string for storage
 string studentToString(const Student& student) {
     stringstream ss;
-    ss << student.rollNumber << "|" 
-       << student.name << "|" 
-       << student.department << "|" 
-       << student.cgpa << "|" 
+    ss << student.rollNumber << "," 
+       << student.name << "," 
+       << student.department << "," 
+       << student.cgpa << "," 
        << student.status;
     return ss.str();
 }
 
-// Validate roll number format (7 digits)
+// Validate roll number format: BSAI-YY-XXX
 bool validateRollNumber(const string& roll) {
-    // Check length
-    if (roll.length() != 7) {
+    // Check if format is BSAI-YY-XXX (exactly 10 characters: BSAI-YY-XXX)
+    if (roll.length() != 10) {
         return false;
     }
     
-    // Check if all characters are digits
-    for (size_t i = 0; i < roll.length(); i++) {
-        if (!isdigit(roll[i])) {
-            return false;
-        }
+    // Check first 4 characters are "BSAI"
+    if (roll.substr(0, 4) != "BSAI") {
+        return false;
+    }
+    
+    // Check 5th character is '-'
+    if (roll[4] != '-') {
+        return false;
+    }
+    
+    // Check positions 5-6 are digits (YY)
+    if (!isdigit(roll[5]) || !isdigit(roll[6])) {
+        return false;
+    }
+    
+    // Check 7th character is '-'
+    if (roll[7] != '-') {
+        return false;
+    }
+    
+    // Check positions 8-10 are digits (XXX)
+    if (!isdigit(roll[8]) || !isdigit(roll[9]) || !isdigit(roll[10])) {
+        return false;
     }
     
     return true;
@@ -57,26 +72,24 @@ bool validateRollNumber(const string& roll) {
 
 // Check for duplicate student
 bool isDuplicateStudent(const string& roll) {
-    vector<string> lines = readTXT("students.txt");
-    for (size_t i = 0; i < lines.size(); i++) {
-        Student student = parseStudentLine(lines[i]);
-        if (student.rollNumber == roll && student.status == "active") {
+    vector<vector<string> > data = readTXT("students.txt");
+    for (size_t i = 0; i < data.size(); i++) {
+        if (data[i].size() >= 5 && data[i][0] == roll && data[i][4] == "active") {
             return true;
         }
     }
     return false;
 }
 
-// Validate name (only alphabets and spaces)
+// Validate name (no digits allowed)
 bool validateName(const string& name) {
     if (name.empty()) {
         return false;
     }
     
     for (size_t i = 0; i < name.length(); i++) {
-        char c = name[i];
-        if (!isalpha(c) && c != ' ') {
-            return false;
+        if (isdigit(name[i])) {
+            return false; // No digits allowed in name
         }
     }
     return true;
@@ -89,11 +102,16 @@ bool validateCGPA(double cgpa) {
 
 // Find student by roll number
 Student findStudentByRoll(const string& roll) {
-    vector<string> lines = readTXT("students.txt");
+    vector<vector<string> > data = readTXT("students.txt");
     
-    for (size_t i = 0; i < lines.size(); i++) {
-        Student student = parseStudentLine(lines[i]);
-        if (student.rollNumber == roll && student.status == "active") {
+    for (size_t i = 0; i < data.size(); i++) {
+        if (data[i].size() >= 5 && data[i][0] == roll && data[i][4] == "active") {
+            Student student;
+            student.rollNumber = data[i][0];
+            student.name = data[i][1];
+            student.department = data[i][2];
+            student.cgpa = atof(data[i][3].c_str());
+            student.status = data[i][4];
             return student;
         }
     }
@@ -131,13 +149,14 @@ void addStudent() {
     
     Student newStudent;
     
-    // Get and validate roll number
+    // Get and validate roll number (Format: BSAI-YY-XXX)
     do {
-        cout << "Enter Roll Number (7 digits): ";
+        cout << "Enter Roll Number (Format: BSAI-YY-XXX, e.g., BSAI-24-001): ";
         cin >> newStudent.rollNumber;
         
         if (!validateRollNumber(newStudent.rollNumber)) {
-            cout << "Error: Roll number must be exactly 7 digits!" << endl;
+            cout << "Error: Roll number must be in format BSAI-YY-XXX!" << endl;
+            cout << "Example: BSAI-24-001" << endl;
             continue;
         }
         
@@ -152,13 +171,13 @@ void addStudent() {
     
     cin.ignore(); // Clear input buffer
     
-    // Get and validate name
+    // Get and validate name (no digits allowed)
     do {
         cout << "Enter Student Name: ";
         getline(cin, newStudent.name);
         
         if (!validateName(newStudent.name)) {
-            cout << "Error: Name can only contain alphabets and spaces!" << endl;
+            cout << "Error: Name cannot contain digits!" << endl;
             newStudent.name = "";
         } else {
             break;
@@ -190,41 +209,26 @@ void addStudent() {
     
     newStudent.status = "active";
     
+    // Convert to CSV row
+    vector<string> row;
+    row.push_back(newStudent.rollNumber);
+    row.push_back(newStudent.name);
+    row.push_back(newStudent.department);
+    stringstream cgpaStr;
+    cgpaStr << newStudent.cgpa;
+    row.push_back(cgpaStr.str());
+    row.push_back(newStudent.status);
+    
     // Append to file
-    string line = studentToString(newStudent);
-    if (appendTXT("students.txt", line)) {
+    if (appendTXT("students.txt", row)) {
         cout << "Student added successfully!" << endl;
     } else {
         cout << "Error: Failed to add student!" << endl;
     }
 }
 
-// Search student by roll number
-void searchStudentByRoll() {
-    cout << "\n--- SEARCH STUDENT BY ROLL NUMBER ---" << endl;
-    
-    string roll;
-    cout << "Enter Roll Number: ";
-    cin >> roll;
-    
-    Student student = findStudentByRoll(roll);
-    
-    if (student.rollNumber == "NULL") {
-        cout << "Student not found!" << endl;
-        return;
-    }
-    
-    // Display student information
-    cout << "\n--- STUDENT INFORMATION ---" << endl;
-    cout << "Roll Number: " << student.rollNumber << endl;
-    cout << "Name: " << student.name << endl;
-    cout << "Department: " << student.department << endl;
-    cout << "CGPA: " << fixed << setprecision(2) << student.cgpa << endl;
-    cout << "Status: " << student.status << endl;
-}
-
-// Search student by name (partial match)
-void searchStudentByName() {
+// Search by name - returns student details or empty if not available
+void searchByName() {
     cout << "\n--- SEARCH STUDENT BY NAME ---" << endl;
     
     string searchName;
@@ -232,7 +236,7 @@ void searchStudentByName() {
     cout << "Enter Name (or part of name): ";
     getline(cin, searchName);
     
-    vector<string> lines = readTXT("students.txt");
+    vector<vector<string> > data = readTXT("students.txt");
     vector<Student> foundStudents;
     
     // Convert search name to lowercase for case-insensitive comparison
@@ -241,20 +245,28 @@ void searchStudentByName() {
         searchLower[i] = tolower(searchLower[i]);
     }
     
-    for (size_t i = 0; i < lines.size(); i++) {
-        Student student = parseStudentLine(lines[i]);
-        if (student.status != "active") {
-            continue; // Skip deleted students
-        }
-        
-        // Convert student name to lowercase for comparison
-        string studentNameLower = student.name;
-        for (size_t j = 0; j < studentNameLower.length(); j++) {
-            studentNameLower[j] = tolower(studentNameLower[j]);
-        }
-        
-        if (studentNameLower.find(searchLower) != string::npos) {
-            foundStudents.push_back(student);
+    for (size_t i = 0; i < data.size(); i++) {
+        if (data[i].size() >= 5) {
+            if (data[i][4] != "active") {
+                continue; // Skip inactive students
+            }
+            
+            // Convert student name to lowercase for comparison
+            string studentNameLower = data[i][1];
+            for (size_t j = 0; j < studentNameLower.length(); j++) {
+                studentNameLower[j] = tolower(studentNameLower[j]);
+            }
+            
+            // Check if name contains substring
+            if (studentNameLower.find(searchLower) != string::npos) {
+                Student student;
+                student.rollNumber = data[i][0];
+                student.name = data[i][1];
+                student.department = data[i][2];
+                student.cgpa = atof(data[i][3].c_str());
+                student.status = data[i][4];
+                foundStudents.push_back(student);
+            }
         }
     }
     
@@ -267,20 +279,20 @@ void searchStudentByName() {
     cout << "\n--- SEARCH RESULTS ---" << endl;
     cout << left << setw(15) << "Roll Number" 
          << setw(30) << "Name" 
-         << setw(25) << "Department" 
+         << setw(15) << "Department" 
          << setw(8) << "CGPA" << endl;
-    cout << string(78, '-') << endl;
+    cout << string(68, '-') << endl;
     
     for (size_t i = 0; i < foundStudents.size(); i++) {
         cout << left << setw(15) << foundStudents[i].rollNumber
              << setw(30) << foundStudents[i].name
-             << setw(25) << foundStudents[i].department
+             << setw(15) << foundStudents[i].department
              << setw(8) << fixed << setprecision(2) << foundStudents[i].cgpa << endl;
     }
     cout << "Total students found: " << foundStudents.size() << endl;
 }
 
-// Update student information
+// Update student - loads file, finds row, updates specified field (not roll), rewrites file
 void updateStudent() {
     cout << "\n--- UPDATE STUDENT INFORMATION ---" << endl;
     
@@ -288,15 +300,12 @@ void updateStudent() {
     cout << "Enter Roll Number of student to update: ";
     cin >> roll;
     
-    // Read all students
-    vector<string> lines = readTXT("students.txt");
+    vector<vector<string> > data = readTXT("students.txt");
     bool found = false;
     int index = -1;
-    Student student;
     
-    for (size_t i = 0; i < lines.size(); i++) {
-        student = parseStudentLine(lines[i]);
-        if (student.rollNumber == roll && student.status == "active") {
+    for (size_t i = 0; i < data.size(); i++) {
+        if (data[i].size() >= 5 && data[i][0] == roll && data[i][4] == "active") {
             found = true;
             index = i;
             break;
@@ -307,6 +316,13 @@ void updateStudent() {
         cout << "Student not found!" << endl;
         return;
     }
+    
+    Student student;
+    student.rollNumber = data[index][0];
+    student.name = data[index][1];
+    student.department = data[index][2];
+    student.cgpa = atof(data[index][3].c_str());
+    student.status = data[index][4];
     
     cout << "\nCurrent Information:" << endl;
     cout << "Name: " << student.name << endl;
@@ -322,7 +338,6 @@ void updateStudent() {
     
     int choice;
     cin >> choice;
-    
     cin.ignore(); // Clear input buffer
     
     switch(choice) {
@@ -332,7 +347,7 @@ void updateStudent() {
                 cout << "Enter New Name: ";
                 getline(cin, newName);
                 if (!validateName(newName)) {
-                    cout << "Error: Name can only contain alphabets and spaces!" << endl;
+                    cout << "Error: Name cannot contain digits!" << endl;
                 } else {
                     student.name = newName;
                     break;
@@ -366,13 +381,12 @@ void updateStudent() {
             break;
         }
         case 4: {
-            // Update all fields
             string newName;
             do {
                 cout << "Enter New Name: ";
                 getline(cin, newName);
                 if (!validateName(newName)) {
-                    cout << "Error: Name can only contain alphabets and spaces!" << endl;
+                    cout << "Error: Name cannot contain digits!" << endl;
                 } else {
                     student.name = newName;
                     break;
@@ -406,33 +420,47 @@ void updateStudent() {
             return;
     }
     
-    // Update the line in the vector
-    lines[index] = studentToString(student);
+    // Update the row (roll number is not updated)
+    vector<string> updatedRow;
+    updatedRow.push_back(student.rollNumber);
+    updatedRow.push_back(student.name);
+    updatedRow.push_back(student.department);
+    stringstream cgpaStr;
+    cgpaStr << student.cgpa;
+    updatedRow.push_back(cgpaStr.str());
+    updatedRow.push_back(student.status);
     
-    // Write back to file
-    if (writeTXT("students.txt", lines)) {
+    data[index] = updatedRow;
+    
+    // Get header
+    vector<string> header;
+    header.push_back("roll");
+    header.push_back("name");
+    header.push_back("dept");
+    header.push_back("cgpa");
+    header.push_back("status");
+    
+    if (writeTXT("students.txt", header, data)) {
         cout << "Student information updated successfully!" << endl;
     } else {
         cout << "Error: Failed to update student!" << endl;
     }
 }
 
-// Soft delete student
-void softDeleteStudent() {
+// Soft delete - sets status field to 'inactive', does not remove row
+void softDelete() {
     cout << "\n--- SOFT DELETE STUDENT ---" << endl;
     
     string roll;
     cout << "Enter Roll Number of student to delete: ";
     cin >> roll;
     
-    vector<string> lines = readTXT("students.txt");
+    vector<vector<string> > data = readTXT("students.txt");
     bool found = false;
     int index = -1;
-    Student student;
     
-    for (size_t i = 0; i < lines.size(); i++) {
-        student = parseStudentLine(lines[i]);
-        if (student.rollNumber == roll && student.status == "active") {
+    for (size_t i = 0; i < data.size(); i++) {
+        if (data[i].size() >= 5 && data[i][0] == roll && data[i][4] == "active") {
             found = true;
             index = i;
             break;
@@ -445,7 +473,7 @@ void softDeleteStudent() {
     }
     
     // Confirm deletion
-    cout << "Are you sure you want to delete student: " << student.name << "? (y/n): ";
+    cout << "Are you sure you want to delete student: " << data[index][1] << "? (y/n): ";
     char confirm;
     cin >> confirm;
     
@@ -454,27 +482,39 @@ void softDeleteStudent() {
         return;
     }
     
-    // Mark as deleted
-    student.status = "deleted";
-    lines[index] = studentToString(student);
+    // Set status to 'inactive'
+    data[index][4] = "inactive";
     
-    if (writeTXT("students.txt", lines)) {
-        cout << "Student marked as deleted successfully!" << endl;
+    // Get header
+    vector<string> header;
+    header.push_back("roll");
+    header.push_back("name");
+    header.push_back("dept");
+    header.push_back("cgpa");
+    header.push_back("status");
+    
+    if (writeTXT("students.txt", header, data)) {
+        cout << "Student marked as inactive successfully!" << endl;
     } else {
         cout << "Error: Failed to delete student!" << endl;
     }
 }
 
-// View all active students
-void viewActiveStudents() {
+// List active students - returns all active students sorted by roll number using selection sort
+void listActiveStudents() {
     cout << "\n--- ACTIVE STUDENTS LIST ---" << endl;
     
-    vector<string> lines = readTXT("students.txt");
+    vector<vector<string> > data = readTXT("students.txt");
     vector<Student> activeStudents;
     
-    for (size_t i = 0; i < lines.size(); i++) {
-        Student student = parseStudentLine(lines[i]);
-        if (student.status == "active") {
+    for (size_t i = 0; i < data.size(); i++) {
+        if (data[i].size() >= 5 && data[i][4] == "active") {
+            Student student;
+            student.rollNumber = data[i][0];
+            student.name = data[i][1];
+            student.department = data[i][2];
+            student.cgpa = atof(data[i][3].c_str());
+            student.status = data[i][4];
             activeStudents.push_back(student);
         }
     }
@@ -490,14 +530,14 @@ void viewActiveStudents() {
     // Display in a formatted table
     cout << "\n" << left << setw(15) << "Roll Number" 
          << setw(30) << "Name" 
-         << setw(25) << "Department" 
+         << setw(15) << "Department" 
          << setw(8) << "CGPA" << endl;
-    cout << string(78, '-') << endl;
+    cout << string(68, '-') << endl;
     
     for (size_t i = 0; i < activeStudents.size(); i++) {
         cout << left << setw(15) << activeStudents[i].rollNumber
              << setw(30) << activeStudents[i].name
-             << setw(25) << activeStudents[i].department
+             << setw(15) << activeStudents[i].department
              << setw(8) << fixed << setprecision(2) << activeStudents[i].cgpa << endl;
     }
     cout << "\nTotal active students: " << activeStudents.size() << endl;
