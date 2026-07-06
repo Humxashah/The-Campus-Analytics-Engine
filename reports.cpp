@@ -12,8 +12,8 @@
 
 using namespace std;
 
-// Sort students by CGPA (descending)
-void sortByCGPA(vector<Student>& students) {
+// Sort students by CGPA in descending order using selection sort
+void sortStudentsByCGPA(vector<Student>& students) {
     int n = students.size();
     
     for (int i = 0; i < n - 1; i++) {
@@ -31,25 +31,21 @@ void sortByCGPA(vector<Student>& students) {
     }
 }
 
-// Export report to file
-void exportReportToFile(const string& filename, const vector<string>& reportLines) {
-    if (writeTXT(filename, reportLines)) {
-        cout << "Report exported to " << filename << " successfully!" << endl;
-    } else {
-        cout << "Error: Failed to export report!" << endl;
-    }
-}
-
-// Generate merit list
-void generateMeritList() {
+// Print merit list - all active students sorted by CGPA descending
+void printMeritList() {
     cout << "\n--- MERIT LIST ---" << endl;
     
-    vector<string> lines = readTXT("students.txt");
+    vector<vector<string> > data = readTXT("students.txt");
     vector<Student> activeStudents;
     
-    for (size_t i = 0; i < lines.size(); i++) {
-        Student student = parseStudentLine(lines[i]);
-        if (student.status == "active") {
+    for (size_t i = 0; i < data.size(); i++) {
+        if (data[i].size() >= 5 && data[i][4] == "active") {
+            Student student;
+            student.rollNumber = data[i][0];
+            student.name = data[i][1];
+            student.department = data[i][2];
+            student.cgpa = atof(data[i][3].c_str());
+            student.status = data[i][4];
             activeStudents.push_back(student);
         }
     }
@@ -59,76 +55,59 @@ void generateMeritList() {
         return;
     }
     
-    // Sort by CGPA
-    sortByCGPA(activeStudents);
+    // Sort by CGPA descending
+    sortStudentsByCGPA(activeStudents);
     
-    // Display merit list
+    // Display merit list with rank column
     cout << "\n" << left << setw(10) << "Rank" 
          << setw(15) << "Roll Number" 
          << setw(30) << "Name" 
-         << setw(25) << "Department" 
+         << setw(15) << "Department" 
          << setw(8) << "CGPA" << endl;
-    cout << string(88, '-') << endl;
-    
-    vector<string> reportLines;
-    reportLines.push_back("========================================");
-    reportLines.push_back("           MERIT LIST                  ");
-    reportLines.push_back("========================================");
-    reportLines.push_back("");
+    cout << string(78, '-') << endl;
     
     for (size_t i = 0; i < activeStudents.size(); i++) {
         int rank = i + 1;
         cout << left << setw(10) << rank
              << setw(15) << activeStudents[i].rollNumber
              << setw(30) << activeStudents[i].name
-             << setw(25) << activeStudents[i].department
+             << setw(15) << activeStudents[i].department
              << setw(8) << fixed << setprecision(2) << activeStudents[i].cgpa << endl;
-        
-        stringstream ss;
-        ss << "Rank " << rank << ": " << activeStudents[i].name << " (" 
-           << activeStudents[i].rollNumber << ") - CGPA: " << fixed << setprecision(2) 
-           << activeStudents[i].cgpa;
-        reportLines.push_back(ss.str());
     }
     
     cout << "\nTotal Students: " << activeStudents.size() << endl;
-    
-    // Export to file
-    reportLines.push_back("");
-    reportLines.push_back("Total Students: " + to_string(activeStudents.size()));
-    
-    exportReportToFile("merit_list.txt", reportLines);
 }
 
-// Generate attendance defaulters
-void generateAttendanceDefaulters() {
+// Print attendance defaulters - students with any course attendance < 75%
+void printAttendanceDefaulters() {
     cout << "\n--- ATTENDANCE DEFAULTERS REPORT ---" << endl;
     
-    vector<string> attendanceLines = readTXT("attendance_log.txt");
+    vector<vector<string> > enrollmentData = readTXT("enrollments.txt");
     vector<string> studentRolls;
     
     // Get unique student roll numbers
-    for (size_t i = 0; i < attendanceLines.size(); i++) {
-        AttendanceRecord record = parseAttendanceLine(attendanceLines[i]);
-        
-        bool exists = false;
-        for (size_t j = 0; j < studentRolls.size(); j++) {
-            if (studentRolls[j] == record.rollNumber) {
-                exists = true;
-                break;
+    for (size_t i = 0; i < enrollmentData.size(); i++) {
+        if (enrollmentData[i].size() >= 4 && enrollmentData[i][3] == "enrolled") {
+            bool exists = false;
+            for (size_t j = 0; j < studentRolls.size(); j++) {
+                if (studentRolls[j] == enrollmentData[i][0]) {
+                    exists = true;
+                    break;
+                }
             }
-        }
-        if (!exists) {
-            studentRolls.push_back(record.rollNumber);
+            if (!exists) {
+                studentRolls.push_back(enrollmentData[i][0]);
+            }
         }
     }
     
-    vector<Student> defaulters;
-    vector<string> reportLines;
-    reportLines.push_back("========================================");
-    reportLines.push_back("     ATTENDANCE DEFAULTERS REPORT       ");
-    reportLines.push_back("========================================");
-    reportLines.push_back("");
+    bool hasDefaulters = false;
+    
+    cout << "\n" << left << setw(15) << "Roll Number" 
+         << setw(30) << "Name" 
+         << setw(15) << "Course" 
+         << setw(15) << "Attendance %" << endl;
+    cout << string(75, '-') << endl;
     
     for (size_t i = 0; i < studentRolls.size(); i++) {
         Student student = findStudentByRoll(studentRolls[i]);
@@ -136,98 +115,61 @@ void generateAttendanceDefaulters() {
             continue;
         }
         
-        // Check all courses for this student
-        vector<string> enrollmentLines = readTXT("enrollments.txt");
-        bool hasShortage = false;
-        string shortageInfo = "";
-        
-        for (size_t j = 0; j < enrollmentLines.size(); j++) {
-            stringstream ss(enrollmentLines[j]);
-            string roll, code, status;
-            getline(ss, roll, '|');
-            getline(ss, code, '|');
-            getline(ss, status, '|');
-            
-            if (roll == studentRolls[i] && status == "A") {
-                double percentage = calculateAttendancePercentage(roll, code);
-                if (percentage < 75.0) {
-                    hasShortage = true;
-                    shortageInfo += code + " (" + to_string(static_cast<int>(percentage)) + "%), ";
+        // Get courses this student is enrolled in
+        vector<string> studentCourses;
+        for (size_t j = 0; j < enrollmentData.size(); j++) {
+            if (enrollmentData[j].size() >= 4) {
+                if (enrollmentData[j][0] == studentRolls[i] && enrollmentData[j][3] == "enrolled") {
+                    studentCourses.push_back(enrollmentData[j][1]);
                 }
             }
         }
         
-        if (hasShortage) {
-            defaulters.push_back(student);
-            stringstream ss;
-            ss << student.name << " (" << student.rollNumber << ") - " << shortageInfo;
-            reportLines.push_back(ss.str());
+        for (size_t j = 0; j < studentCourses.size(); j++) {
+            double pct = getAttendancePct(studentRolls[i], studentCourses[j]);
+            if (pct < 75.0) {
+                hasDefaulters = true;
+                Course course = findCourseByCode(studentCourses[j]);
+                cout << left << setw(15) << student.rollNumber
+                     << setw(30) << student.name
+                     << setw(15) << (course.courseCode != "NULL" ? course.courseCode : studentCourses[j])
+                     << setw(15) << fixed << setprecision(2) << pct << "%" << endl;
+            }
         }
     }
     
-    if (defaulters.empty()) {
+    if (!hasDefaulters) {
         cout << "No attendance defaulters found!" << endl;
-        reportLines.push_back("No attendance defaulters found.");
-    } else {
-        cout << "\n" << left << setw(15) << "Roll Number" 
-             << setw(30) << "Name" 
-             << setw(25) << "Department" << endl;
-        cout << string(70, '-') << endl;
-        
-        for (size_t i = 0; i < defaulters.size(); i++) {
-            cout << left << setw(15) << defaulters[i].rollNumber
-                 << setw(30) << defaulters[i].name
-                 << setw(25) << defaulters[i].department << endl;
-        }
-        
-        cout << "\nTotal Attendance Defaulters: " << defaulters.size() << endl;
     }
-    
-    reportLines.push_back("");
-    reportLines.push_back("Total Defaulters: " + to_string(defaulters.size()));
-    
-    exportReportToFile("attendance_defaulters.txt", reportLines);
 }
 
-// Generate fee defaulters
-void generateFeeDefaulters() {
+// Print fee defaulters - formatted with outstanding amount and weeks overdue
+void printFeeDefaulters() {
     cout << "\n--- FEE DEFAULTERS REPORT ---" << endl;
     
-    vector<string> lines = readTXT("fees.txt");
-    vector<FeeRecord> allFees;
+    vector<vector<string> > data = readTXT("fees.txt");
+    vector<FeeRecord> defaulters;
     
-    for (size_t i = 0; i < lines.size(); i++) {
-        FeeRecord record = parseFeeLine(lines[i]);
-        allFees.push_back(record);
-    }
+    // Current date for comparison
+    string currentDate = "30-01-2024";
     
-    vector<Student> defaulters;
-    vector<string> processedRolls;
-    vector<string> reportLines;
-    reportLines.push_back("========================================");
-    reportLines.push_back("       FEE DEFAULTERS REPORT            ");
-    reportLines.push_back("========================================");
-    reportLines.push_back("");
-    
-    for (size_t i = 0; i < allFees.size(); i++) {
-        if (allFees[i].status == "Unpaid") {
-            bool alreadyProcessed = false;
-            for (size_t j = 0; j < processedRolls.size(); j++) {
-                if (processedRolls[j] == allFees[i].rollNumber) {
-                    alreadyProcessed = true;
-                    break;
-                }
-            }
+    for (size_t i = 0; i < data.size(); i++) {
+        if (data[i].size() >= 6) {
+            FeeRecord record;
+            record.rollNumber = data[i][0];
+            record.semester = data[i][1];
+            record.amountDue = atof(data[i][2].c_str());
+            record.amountPaid = atof(data[i][3].c_str());
+            record.dueDate = data[i][4];
+            record.paidDate = data[i][5];
             
-            if (!alreadyProcessed) {
-                Student student = findStudentByRoll(allFees[i].rollNumber);
-                if (student.rollNumber != "NULL") {
-                    defaulters.push_back(student);
-                    processedRolls.push_back(allFees[i].rollNumber);
-                    
-                    stringstream ss;
-                    ss << student.name << " (" << student.rollNumber << ") - Amount Due: Rs. 50,000";
-                    reportLines.push_back(ss.str());
+            double outstanding = record.amountDue - record.amountPaid;
+            
+            if (outstanding > 0) {
+                int daysDiff = daysBetween(record.dueDate, currentDate);
+                if (daysDiff > 0) {
+                    record.amountDue = outstanding; // Store outstanding as amount due for sorting
+                    defaulters.push_back(record);
                 }
             }
         }
@@ -235,215 +177,211 @@ void generateFeeDefaulters() {
     
     if (defaulters.empty()) {
         cout << "No fee defaulters found!" << endl;
-        reportLines.push_back("No fee defaulters found.");
-    } else {
-        cout << "\n" << left << setw(15) << "Roll Number" 
-             << setw(30) << "Name" 
-             << setw(25) << "Department" 
-             << setw(15) << "Amount Due" << endl;
-        cout << string(85, '-') << endl;
-        
-        for (size_t i = 0; i < defaulters.size(); i++) {
-            cout << left << setw(15) << defaulters[i].rollNumber
-                 << setw(30) << defaulters[i].name
-                 << setw(25) << defaulters[i].department
-                 << setw(15) << "Rs. 50,000" << endl;
-        }
-        
-        cout << "\nTotal Fee Defaulters: " << defaulters.size() << endl;
-    }
-    
-    reportLines.push_back("");
-    reportLines.push_back("Total Defaulters: " + to_string(defaulters.size()));
-    
-    exportReportToFile("fee_defaulters.txt", reportLines);
-}
-
-// Generate semester result
-void generateSemesterResult() {
-    cout << "\n--- GENERATE SEMESTER RESULT ---" << endl;
-    
-    string roll;
-    cout << "Enter Student Roll Number: ";
-    cin >> roll;
-    
-    // Check if student exists
-    Student student = findStudentByRoll(roll);
-    if (student.rollNumber == "NULL") {
-        cout << "Error: Student not found!" << endl;
         return;
     }
     
-    vector<string> reportLines;
-    reportLines.push_back("========================================");
-    reportLines.push_back("       SEMESTER RESULT REPORT           ");
-    reportLines.push_back("========================================");
-    reportLines.push_back("");
-    reportLines.push_back("Student Name: " + student.name);
-    reportLines.push_back("Roll Number: " + student.rollNumber);
-    reportLines.push_back("Department: " + student.department);
-    reportLines.push_back("CGPA: " + to_string(student.cgpa));
-    reportLines.push_back("");
-    reportLines.push_back("----------------------------------------");
-    reportLines.push_back("COURSE RESULTS:");
-    reportLines.push_back("----------------------------------------");
+    // Sort by outstanding amount using bubble sort
+    bubbleSortDefaulters(defaulters);
     
-    cout << "\n--- SEMESTER RESULT FOR " << student.name << " ---" << endl;
-    cout << "Student: " << student.name << " (" << roll << ")" << endl;
-    cout << "Department: " << student.department << endl;
-    cout << "\n" << left << setw(15) << "Course" 
-         << setw(15) << "Credits" 
-         << setw(15) << "Total" 
-         << setw(10) << "Grade" << endl;
-    cout << string(55, '-') << endl;
+    cout << "\n" << left << setw(15) << "Roll Number" 
+         << setw(30) << "Name" 
+         << setw(15) << "Semester" 
+         << setw(15) << "Outstanding" 
+         << setw(15) << "Weeks Overdue" << endl;
+    cout << string(90, '-') << endl;
     
-    vector<string> gradeLines = readTXT("grades.txt");
-    double totalPoints = 0;
-    int totalCredits = 0;
+    for (size_t i = 0; i < defaulters.size(); i++) {
+        Student student = findStudentByRoll(defaulters[i].rollNumber);
+        if (student.rollNumber != "NULL") {
+            double outstanding = defaulters[i].amountDue;
+            int weeksOverdue = daysBetween(defaulters[i].dueDate, currentDate) / 7;
+            
+            cout << left << setw(15) << student.rollNumber
+                 << setw(30) << student.name
+                 << setw(15) << defaulters[i].semester
+                 << setw(15) << fixed << setprecision(2) << outstanding
+                 << setw(15) << weeksOverdue << " weeks" << endl;
+        }
+    }
     
-    for (size_t i = 0; i < gradeLines.size(); i++) {
-        GradeRecord record = parseGradeLine(gradeLines[i]);
-        if (record.rollNumber == roll) {
-            Course course = findCourseByCode(record.courseCode);
-            if (course.courseCode == "NULL") {
-                continue;
+    cout << "\nTotal Defaulters: " << defaulters.size() << endl;
+}
+
+// Print semester result - full result sheet with borders
+void printSemesterResult() {
+    cout << "\n--- SEMESTER RESULT ---" << endl;
+    
+    string semester;
+    cout << "Enter Semester: ";
+    cin >> semester;
+    
+    vector<vector<string> > enrollmentData = readTXT("enrollments.txt");
+    vector<string> studentRolls;
+    
+    // Get unique student roll numbers for this semester
+    for (size_t i = 0; i < enrollmentData.size(); i++) {
+        if (enrollmentData[i].size() >= 4) {
+            if (enrollmentData[i][2] == semester && enrollmentData[i][3] == "enrolled") {
+                bool exists = false;
+                for (size_t j = 0; j < studentRolls.size(); j++) {
+                    if (studentRolls[j] == enrollmentData[i][0]) {
+                        exists = true;
+                        break;
+                    }
+                }
+                if (!exists) {
+                    studentRolls.push_back(enrollmentData[i][0]);
+                }
             }
-            
-            // Calculate total
-            double quizzes[5] = {record.quiz1, record.quiz2, record.quiz3, 
-                                record.quiz4, record.quiz5};
-            
-            for (int j = 0; j < 5; j++) {
-                for (int k = j + 1; k < 5; k++) {
-                    if (quizzes[j] < quizzes[k]) {
-                        double temp = quizzes[j];
-                        quizzes[j] = quizzes[k];
-                        quizzes[k] = temp;
+        }
+    }
+    
+    if (studentRolls.empty()) {
+        cout << "No students found for this semester!" << endl;
+        return;
+    }
+    
+    cout << "\n" << string(100, '=') << endl;
+    cout << setw(50) << "SEMESTER RESULT SHEET - " << semester << endl;
+    cout << string(100, '=') << endl;
+    
+    cout << left << setw(15) << "Roll Number" 
+         << setw(30) << "Name" 
+         << setw(15) << "CGPA" 
+         << setw(15) << "GPA" 
+         << setw(20) << "Attendance Status" << endl;
+    cout << string(100, '-') << endl;
+    
+    for (size_t i = 0; i < studentRolls.size(); i++) {
+        Student student = findStudentByRoll(studentRolls[i]);
+        if (student.rollNumber == "NULL") {
+            continue;
+        }
+        
+        double gpa = computeGPA(studentRolls[i], semester);
+        
+        // Check attendance status for all courses
+        bool hasShortage = false;
+        vector<vector<string> > enrollments = readTXT("enrollments.txt");
+        for (size_t j = 0; j < enrollments.size(); j++) {
+            if (enrollments[j].size() >= 4) {
+                if (enrollments[j][0] == studentRolls[i] && 
+                    enrollments[j][2] == semester && 
+                    enrollments[j][3] == "enrolled") {
+                    double attPct = getAttendancePct(studentRolls[i], enrollments[j][1]);
+                    if (attPct < 75.0) {
+                        hasShortage = true;
+                        break;
                     }
                 }
             }
-            
-            double quizAverage = (quizzes[0] + quizzes[1] + quizzes[2]) / 3.0;
-            double total = (quizAverage * 0.20) + 
-                          (record.assignment * 0.10) + 
-                          (record.midterm * 0.30) + 
-                          (record.finalExam * 0.40);
-            
-            total = applyAttendancePenalty(roll, record.courseCode, total);
-            
-            char grade = calculateLetterGrade(total);
-            double gradePoints = 0.0;
-            switch(grade) {
-                case 'A': gradePoints = 4.0; break;
-                case 'B': gradePoints = 3.0; break;
-                case 'C': gradePoints = 2.0; break;
-                case 'D': gradePoints = 1.0; break;
-                case 'F': gradePoints = 0.0; break;
-            }
-            
-            cout << left << setw(15) << course.courseCode
-                 << setw(15) << course.creditHours
-                 << setw(15) << fixed << setprecision(2) << total
-                 << setw(10) << grade << endl;
-            
-            stringstream ss;
-            ss << course.courseCode << " | Credits: " << course.creditHours 
-               << " | Total: " << fixed << setprecision(2) << total 
-               << " | Grade: " << grade;
-            reportLines.push_back(ss.str());
-            
-            totalPoints += gradePoints * course.creditHours;
-            totalCredits += course.creditHours;
         }
+        
+        string attendanceStatus = hasShortage ? "SHORTAGE" : "OK";
+        string statusColor = hasShortage ? "!" : " ";
+        
+        cout << left << setw(15) << student.rollNumber
+             << setw(30) << student.name
+             << setw(15) << fixed << setprecision(2) << student.cgpa
+             << setw(15) << fixed << setprecision(2) << gpa
+             << setw(20) << attendanceStatus << endl;
     }
     
-    if (totalCredits > 0) {
-        double gpa = totalPoints / totalCredits;
-        cout << string(55, '-') << endl;
-        cout << "Total Credits: " << totalCredits << endl;
-        cout << "GPA: " << fixed << setprecision(2) << gpa << endl;
-        
-        reportLines.push_back("");
-        reportLines.push_back("----------------------------------------");
-        reportLines.push_back("SUMMARY:");
-        reportLines.push_back("Total Credits: " + to_string(totalCredits));
-        reportLines.push_back("GPA: " + to_string(gpa));
-        reportLines.push_back("========================================");
-        
-        exportReportToFile("semester_result_" + roll + ".txt", reportLines);
-    } else {
-        cout << "No courses found for this student!" << endl;
-        reportLines.push_back("No courses found for this student.");
-        exportReportToFile("semester_result_" + roll + ".txt", reportLines);
-    }
+    cout << string(100, '=') << endl;
 }
 
-// Generate department summary
-void generateDepartmentSummary() {
+// Print department summary - group by dept using nested loops
+void printDepartmentSummary() {
     cout << "\n--- DEPARTMENT SUMMARY ---" << endl;
     
-    string department;
-    cin.ignore();
-    cout << "Enter Department Name: ";
-    getline(cin, department);
+    vector<vector<string> > data = readTXT("students.txt");
+    vector<string> departments;
+    vector<int> counts;
+    vector<double> totalCGPA;
+    vector<int> passCount;
     
-    vector<string> lines = readTXT("students.txt");
-    vector<Student> deptStudents;
-    
-    for (size_t i = 0; i < lines.size(); i++) {
-        Student student = parseStudentLine(lines[i]);
-        if (student.status == "active" && student.department == department) {
-            deptStudents.push_back(student);
+    // Collect all departments using nested loops
+    for (size_t i = 0; i < data.size(); i++) {
+        if (data[i].size() >= 5 && data[i][4] == "active") {
+            string dept = data[i][2];
+            
+            // Check if department already exists in parallel arrays
+            bool found = false;
+            for (size_t j = 0; j < departments.size(); j++) {
+                if (departments[j] == dept) {
+                    found = true;
+                    break;
+                }
+            }
+            
+            if (!found) {
+                departments.push_back(dept);
+                counts.push_back(0);
+                totalCGPA.push_back(0.0);
+                passCount.push_back(0);
+            }
         }
     }
     
-    if (deptStudents.empty()) {
-        cout << "No active students found in this department!" << endl;
+    // Populate data using nested loops
+    for (size_t i = 0; i < data.size(); i++) {
+        if (data[i].size() >= 5 && data[i][4] == "active") {
+            string dept = data[i][2];
+            double cgpa = atof(data[i][3].c_str());
+            
+            for (size_t j = 0; j < departments.size(); j++) {
+                if (departments[j] == dept) {
+                    counts[j]++;
+                    totalCGPA[j] += cgpa;
+                    if (cgpa >= 2.0) {
+                        passCount[j]++;
+                    }
+                    break;
+                }
+            }
+        }
+    }
+    
+    cout << "\n" << left << setw(20) << "Department" 
+         << setw(15) << "Students" 
+         << setw(15) << "Avg CGPA" 
+         << setw(15) << "Pass Rate" << endl;
+    cout << string(65, '-') << endl;
+    
+    for (size_t i = 0; i < departments.size(); i++) {
+        double avgCGPA = (counts[i] > 0) ? totalCGPA[i] / counts[i] : 0.0;
+        double passRate = (counts[i] > 0) ? (static_cast<double>(passCount[i]) / counts[i]) * 100.0 : 0.0;
+        
+        cout << left << setw(20) << departments[i]
+             << setw(15) << counts[i]
+             << setw(15) << fixed << setprecision(2) << avgCGPA
+             << setw(15) << fixed << setprecision(2) << passRate << "%" << endl;
+    }
+    
+    cout << string(65, '-') << endl;
+}
+
+// Export report to file - redirects cout to ofstream
+void exportReportToFile(const string& filename, void (*reportFunction)()) {
+    // Save original cout buffer
+    streambuf* originalCoutBuffer = cout.rdbuf();
+    
+    // Open file for writing
+    ofstream file(filename.c_str());
+    if (!file.is_open()) {
+        cerr << "Error: Cannot create file " << filename << "!" << endl;
         return;
     }
     
-    vector<string> reportLines;
-    reportLines.push_back("========================================");
-    reportLines.push_back("       DEPARTMENT SUMMARY REPORT        ");
-    reportLines.push_back("========================================");
-    reportLines.push_back("");
-    reportLines.push_back("Department: " + department);
-    reportLines.push_back("Total Students: " + to_string(deptStudents.size()));
-    reportLines.push_back("");
-    reportLines.push_back("----------------------------------------");
-    reportLines.push_back("STUDENT LIST:");
-    reportLines.push_back("----------------------------------------");
+    // Redirect cout to file
+    cout.rdbuf(file.rdbuf());
     
-    cout << "\n--- DEPARTMENT SUMMARY FOR " << department << " ---" << endl;
-    cout << "Total Students: " << deptStudents.size() << endl;
-    cout << "\n" << left << setw(15) << "Roll Number" 
-         << setw(30) << "Name" 
-         << setw(8) << "CGPA" << endl;
-    cout << string(53, '-') << endl;
+    // Call the report function
+    reportFunction();
     
-    double totalCGPA = 0;
+    // Restore original cout buffer
+    cout.rdbuf(originalCoutBuffer);
+    file.close();
     
-    for (size_t i = 0; i < deptStudents.size(); i++) {
-        cout << left << setw(15) << deptStudents[i].rollNumber
-             << setw(30) << deptStudents[i].name
-             << setw(8) << fixed << setprecision(2) << deptStudents[i].cgpa << endl;
-        
-        stringstream ss;
-        ss << deptStudents[i].rollNumber << " | " << deptStudents[i].name 
-           << " | CGPA: " << fixed << setprecision(2) << deptStudents[i].cgpa;
-        reportLines.push_back(ss.str());
-        
-        totalCGPA += deptStudents[i].cgpa;
-    }
-    
-    double avgCGPA = totalCGPA / deptStudents.size();
-    cout << string(53, '-') << endl;
-    cout << "Average CGPA: " << fixed << setprecision(2) << avgCGPA << endl;
-    
-    reportLines.push_back("");
-    reportLines.push_back("----------------------------------------");
-    reportLines.push_back("Average CGPA: " + to_string(avgCGPA));
-    reportLines.push_back("========================================");
-    
-    exportReportToFile("dept_summary_" + department + ".txt", reportLines);
+    cout << "Report exported to " << filename << " successfully!" << endl;
 }

@@ -9,49 +9,52 @@ using namespace std;
 // Structure to hold fee record
 struct FeeRecord {
     string rollNumber;
-    string date;
-    double amount;
-    string status; // "Paid" or "Unpaid"
+    string semester;
+    double amountDue;
+    double amountPaid;
+    string dueDate;
+    string paidDate;
 };
 
 // Function declarations for fee operations
 
 /*
- * Records a fee payment for a student
- * Validates date and amount
+ * Records a payment for a student
+ * Validates date format DD-MM-YYYY with string checks
+ * Updates fees.txt paid amount
  */
 void recordPayment();
 
 /*
- * Validates date format (YYYY-MM-DD)
+ * Validates date format DD-MM-YYYY with string checks
  */
 bool validateDate(const string& date);
 
 /*
- * Validates if a date is in the past (manual date calculation)
+ * Computes late fine based on due_date and paid_date
+ * Calculates 2% per complete week
  */
-bool isDateValid(const string& date);
+double computeLateFine(const string& dueDate, const string& paidDate, double amountDue);
 
 /*
- * Calculates late fine based on days overdue
+ * Parses two DD-MM-YYYY strings, converts to total day count
+ * Uses manual month-length array, no time library
+ * Returns integer difference
  */
-double calculateLateFine(const string& date);
+int daysBetween(const string& date1, const string& date2);
 
 /*
- * Generates a receipt for a payment
+ * Prints formatted receipt: tuition breakdown, late fine if any,
+ * total due, paid, balance
+ * Uses setw from iomanip
  */
-void generateReceipt(const string& roll, double amount, const string& date);
+void generateReceipt(const string& roll, const string& semester);
 
 /*
- * Calculates outstanding balance for a student
+ * Returns students with a balance > 0 past due date
+ * Sorted by outstanding amount using bubble sort
  */
-void viewOutstandingBalance();
-
-/*
- * Lists fee defaulters (students with unpaid fees)
- * Uses bubble sort to sort by amount
- */
-void viewFeeDefaulters();
+void getDefaulters();
 
 /*
  * Parses a fee line from fees.txt
@@ -59,8 +62,18 @@ void viewFeeDefaulters();
 FeeRecord parseFeeLine(const string& line);
 
 /*
- * Bubble sort implementation for sorting fees
+ * Converts FeeRecord to string for storage
  */
-void bubbleSortFees(vector<FeeRecord>& fees);
+string feeToString(const FeeRecord& fee);
+
+/*
+ * Calculates outstanding balance for a student
+ */
+double getOutstandingBalance(const string& roll, const string& semester);
+
+/*
+ * Bubble sort implementation for sorting defaulters by outstanding amount
+ */
+void bubbleSortDefaulters(vector<FeeRecord>& defaulters);
 
 #endif

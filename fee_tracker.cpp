@@ -9,38 +9,50 @@
 
 using namespace std;
 
-// Parse fee line
+// Parse fee line from CSV
 FeeRecord parseFeeLine(const string& line) {
     FeeRecord record;
-    stringstream ss(line);
+    vector<string> fields = parseCSVLine(line);
     
-    getline(ss, record.rollNumber, '|');
-    getline(ss, record.date, '|');
-    
-    string amountStr;
-    getline(ss, amountStr, '|');
-    record.amount = atof(amountStr.c_str());
-    
-    getline(ss, record.status, '|');
+    if (fields.size() >= 6) {
+        record.rollNumber = fields[0];
+        record.semester = fields[1];
+        record.amountDue = atof(fields[2].c_str());
+        record.amountPaid = atof(fields[3].c_str());
+        record.dueDate = fields[4];
+        record.paidDate = fields[5];
+    }
     
     return record;
 }
 
-// Validate date format
+// Convert FeeRecord to string
+string feeToString(const FeeRecord& fee) {
+    stringstream ss;
+    ss << fee.rollNumber << ","
+       << fee.semester << ","
+       << fee.amountDue << ","
+       << fee.amountPaid << ","
+       << fee.dueDate << ","
+       << fee.paidDate;
+    return ss.str();
+}
+
+// Validate date format DD-MM-YYYY with string checks
 bool validateDate(const string& date) {
     // Check length
     if (date.length() != 10) {
         return false;
     }
     
-    // Check format YYYY-MM-DD
-    if (date[4] != '-' || date[7] != '-') {
+    // Check format DD-MM-YYYY
+    if (date[2] != '-' || date[5] != '-') {
         return false;
     }
     
     // Check if all characters are digits or hyphens
     for (size_t i = 0; i < date.length(); i++) {
-        if (i == 4 || i == 7) {
+        if (i == 2 || i == 5) {
             if (date[i] != '-') return false;
         } else {
             if (!isdigit(date[i])) return false;
@@ -48,9 +60,9 @@ bool validateDate(const string& date) {
     }
     
     // Extract parts
-    int year = atoi(date.substr(0, 4).c_str());
-    int month = atoi(date.substr(5, 2).c_str());
-    int day = atoi(date.substr(8, 2).c_str());
+    int day = atoi(date.substr(0, 2).c_str());
+    int month = atoi(date.substr(3, 2).c_str());
+    int year = atoi(date.substr(6, 4).c_str());
     
     // Basic validation
     if (year < 2000 || year > 2099) return false;
@@ -69,85 +81,199 @@ bool validateDate(const string& date) {
     return true;
 }
 
-// Check if date is valid (not in the future)
-bool isDateValid(const string& date) {
-    if (!validateDate(date)) {
-        return false;
+// Parse DD-MM-YYYY to total day count (manual month-length array)
+int daysBetween(const string& date1, const string& date2) {
+    // Manual month length array
+    int daysInMonth[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+    
+    // Parse date1
+    int day1 = atoi(date1.substr(0, 2).c_str());
+    int month1 = atoi(date1.substr(3, 2).c_str());
+    int year1 = atoi(date1.substr(6, 4).c_str());
+    
+    // Parse date2
+    int day2 = atoi(date2.substr(0, 2).c_str());
+    int month2 = atoi(date2.substr(3, 2).c_str());
+    int year2 = atoi(date2.substr(6, 4).c_str());
+    
+    // Check for N/A
+    if (date1 == "N/A" || date2 == "N/A") {
+        return 0;
     }
     
-    // Current date (hardcoded for demonstration)
-    string currentDate = "2024-03-15";
+    // Calculate total days for date1
+    int totalDays1 = 0;
+    for (int y = 2000; y < year1; y++) {
+        bool isLeap = (y % 4 == 0 && y % 100 != 0) || (y % 400 == 0);
+        totalDays1 += isLeap ? 366 : 365;
+    }
+    for (int m = 1; m < month1; m++) {
+        if (m == 2) {
+            bool isLeap = (year1 % 4 == 0 && year1 % 100 != 0) || (year1 % 400 == 0);
+            totalDays1 += isLeap ? 29 : 28;
+        } else {
+            totalDays1 += daysInMonth[m - 1];
+        }
+    }
+    totalDays1 += day1;
     
-    // Simple comparison - convert to comparable format
-    return date <= currentDate;
+    // Calculate total days for date2
+    int totalDays2 = 0;
+    for (int y = 2000; y < year2; y++) {
+        bool isLeap = (y % 4 == 0 && y % 100 != 0) || (y % 400 == 0);
+        totalDays2 += isLeap ? 366 : 365;
+    }
+    for (int m = 1; m < month2; m++) {
+        if (m == 2) {
+            bool isLeap = (year2 % 4 == 0 && year2 % 100 != 0) || (year2 % 400 == 0);
+            totalDays2 += isLeap ? 29 : 28;
+        } else {
+            totalDays2 += daysInMonth[m - 1];
+        }
+    }
+    totalDays2 += day2;
+    
+    return abs(totalDays2 - totalDays1);
 }
 
-// Calculate late fine
-double calculateLateFine(const string& date) {
-    // Current date (hardcoded)
-    string currentDate = "2024-03-15";
+// Compute late fine: 2% per complete week
+double computeLateFine(const string& dueDate, const string& paidDate, double amountDue) {
+    if (paidDate == "N/A" || dueDate == "N/A") {
+        return 0.0;
+    }
     
-    // Extract parts
-    int payYear = atoi(date.substr(0, 4).c_str());
-    int payMonth = atoi(date.substr(5, 2).c_str());
-    int payDay = atoi(date.substr(8, 2).c_str());
+    int days = daysBetween(dueDate, paidDate);
     
-    int curYear = atoi(currentDate.substr(0, 4).c_str());
-    int curMonth = atoi(currentDate.substr(5, 2).c_str());
-    int curDay = atoi(currentDate.substr(8, 2).c_str());
+    // No fine if paid on or before due date
+    if (days <= 0) {
+        return 0.0;
+    }
     
-    // Calculate days difference (simplified)
-    int days = (curYear - payYear) * 365 + (curMonth - payMonth) * 30 + (curDay - payDay);
+    // Calculate complete weeks
+    int completeWeeks = days / 7;
     
-    // Fine: Rs. 100 per day late after 30 days grace period
-    if (days > 30) {
-        int lateDays = days - 30;
-        return lateDays * 100.0;
+    // 2% per complete week
+    double finePercentage = completeWeeks * 0.02;
+    
+    // Cap at 50% maximum
+    if (finePercentage > 0.50) {
+        finePercentage = 0.50;
+    }
+    
+    return amountDue * finePercentage;
+}
+
+// Get outstanding balance for a student
+double getOutstandingBalance(const string& roll, const string& semester) {
+    vector<vector<string> > data = readTXT("fees.txt");
+    
+    for (size_t i = 0; i < data.size(); i++) {
+        if (data[i].size() >= 6) {
+            if (data[i][0] == roll && data[i][1] == semester) {
+                double amountDue = atof(data[i][2].c_str());
+                double amountPaid = atof(data[i][3].c_str());
+                return amountDue - amountPaid;
+            }
+        }
     }
     
     return 0.0;
 }
 
-// Generate receipt
-void generateReceipt(const string& roll, double amount, const string& date) {
+// Bubble sort for defaulters by outstanding amount
+void bubbleSortDefaulters(vector<FeeRecord>& defaulters) {
+    int n = defaulters.size();
+    
+    for (int i = 0; i < n - 1; i++) {
+        for (int j = 0; j < n - i - 1; j++) {
+            double balance1 = defaulters[j].amountDue - defaulters[j].amountPaid;
+            double balance2 = defaulters[j + 1].amountDue - defaulters[j + 1].amountPaid;
+            
+            if (balance1 < balance2) {
+                FeeRecord temp = defaulters[j];
+                defaulters[j] = defaulters[j + 1];
+                defaulters[j + 1] = temp;
+            }
+        }
+    }
+}
+
+// Generate receipt - formatted receipt with breakdown
+void generateReceipt(const string& roll, const string& semester) {
     Student student = findStudentByRoll(roll);
     if (student.rollNumber == "NULL") {
         cout << "Error: Student not found!" << endl;
         return;
     }
     
-    string receiptFile = "receipt_" + roll + "_" + date + ".txt";
+    vector<vector<string> > data = readTXT("fees.txt");
+    FeeRecord feeRecord;
+    bool found = false;
     
-    vector<string> receipt;
-    receipt.push_back("============================================");
-    receipt.push_back("          FEE PAYMENT RECEIPT              ");
-    receipt.push_back("============================================");
-    receipt.push_back("Receipt Date: " + date);
-    receipt.push_back("Student Roll: " + roll);
-    receipt.push_back("Student Name: " + student.name);
-    receipt.push_back("Department: " + student.department);
-    receipt.push_back("--------------------------------------------");
-    receipt.push_back("Amount Paid: Rs. " + to_string(static_cast<int>(amount)));
-    
-    double fine = calculateLateFine(date);
-    if (fine > 0) {
-        receipt.push_back("Late Fine: Rs. " + to_string(static_cast<int>(fine)));
-        receipt.push_back("Total Paid: Rs. " + to_string(static_cast<int>(amount + fine)));
+    for (size_t i = 0; i < data.size(); i++) {
+        if (data[i].size() >= 6) {
+            if (data[i][0] == roll && data[i][1] == semester) {
+                feeRecord.rollNumber = data[i][0];
+                feeRecord.semester = data[i][1];
+                feeRecord.amountDue = atof(data[i][2].c_str());
+                feeRecord.amountPaid = atof(data[i][3].c_str());
+                feeRecord.dueDate = data[i][4];
+                feeRecord.paidDate = data[i][5];
+                found = true;
+                break;
+            }
+        }
     }
     
-    receipt.push_back("--------------------------------------------");
-    receipt.push_back("Status: PAID");
-    receipt.push_back("Thank you for your payment!");
-    receipt.push_back("============================================");
-    
-    if (writeTXT(receiptFile, receipt)) {
-        cout << "Receipt generated successfully: " << receiptFile << endl;
-    } else {
-        cout << "Error: Failed to generate receipt!" << endl;
+    if (!found) {
+        cout << "No fee record found for this student!" << endl;
+        return;
     }
+    
+    double outstanding = feeRecord.amountDue - feeRecord.amountPaid;
+    double lateFine = 0.0;
+    
+    if (feeRecord.paidDate != "N/A") {
+        lateFine = computeLateFine(feeRecord.dueDate, feeRecord.paidDate, feeRecord.amountDue);
+    }
+    
+    // Generate receipt using setw from iomanip
+    cout << "\n" << string(60, '=') << endl;
+    cout << setw(40) << "FEE PAYMENT RECEIPT" << endl;
+    cout << string(60, '=') << endl;
+    cout << left << setw(20) << "Student Name:" << student.name << endl;
+    cout << left << setw(20) << "Roll Number:" << roll << endl;
+    cout << left << setw(20) << "Semester:" << semester << endl;
+    cout << left << setw(20) << "Department:" << student.department << endl;
+    cout << string(60, '-') << endl;
+    
+    cout << left << setw(30) << "Tuition Fee:" 
+         << right << setw(10) << fixed << setprecision(2) << feeRecord.amountDue << endl;
+    
+    if (lateFine > 0) {
+        cout << left << setw(30) << "Late Fine (2% per week):" 
+             << right << setw(10) << fixed << setprecision(2) << lateFine << endl;
+    }
+    
+    cout << left << setw(30) << "Total Amount Due:" 
+         << right << setw(10) << fixed << setprecision(2) << (feeRecord.amountDue + lateFine) << endl;
+    cout << left << setw(30) << "Amount Paid:" 
+         << right << setw(10) << fixed << setprecision(2) << feeRecord.amountPaid << endl;
+    cout << string(60, '-') << endl;
+    cout << left << setw(30) << "Outstanding Balance:" 
+         << right << setw(10) << fixed << setprecision(2) << outstanding << endl;
+    
+    cout << left << setw(20) << "Due Date:" << feeRecord.dueDate << endl;
+    if (feeRecord.paidDate != "N/A") {
+        cout << left << setw(20) << "Payment Date:" << feeRecord.paidDate << endl;
+    }
+    
+    cout << string(60, '=') << endl;
+    cout << setw(45) << "Thank you for your payment!" << endl;
+    cout << string(60, '=') << endl;
 }
 
-// Record payment
+// Record payment - validates date, updates fees.txt
 void recordPayment() {
     cout << "\n--- RECORD FEE PAYMENT ---" << endl;
     
@@ -162,18 +288,44 @@ void recordPayment() {
         return;
     }
     
-    string date;
-    do {
-        cout << "Enter Payment Date (YYYY-MM-DD): ";
-        cin >> date;
-        
-        if (!validateDate(date)) {
-            cout << "Error: Invalid date format! Use YYYY-MM-DD" << endl;
-            continue;
+    string semester;
+    cout << "Enter Semester: ";
+    cin >> semester;
+    
+    // Check if fee record exists
+    vector<vector<string> > data = readTXT("fees.txt");
+    bool found = false;
+    int index = -1;
+    FeeRecord feeRecord;
+    
+    for (size_t i = 0; i < data.size(); i++) {
+        if (data[i].size() >= 6) {
+            if (data[i][0] == roll && data[i][1] == semester) {
+                found = true;
+                index = i;
+                feeRecord.rollNumber = data[i][0];
+                feeRecord.semester = data[i][1];
+                feeRecord.amountDue = atof(data[i][2].c_str());
+                feeRecord.amountPaid = atof(data[i][3].c_str());
+                feeRecord.dueDate = data[i][4];
+                feeRecord.paidDate = data[i][5];
+                break;
+            }
         }
+    }
+    
+    if (!found) {
+        cout << "No fee record found for this student and semester!" << endl;
+        return;
+    }
+    
+    string paidDate;
+    do {
+        cout << "Enter Payment Date (DD-MM-YYYY): ";
+        cin >> paidDate;
         
-        if (!isDateValid(date)) {
-            cout << "Error: Payment date cannot be in the future!" << endl;
+        if (!validateDate(paidDate)) {
+            cout << "Error: Invalid date format! Use DD-MM-YYYY" << endl;
             continue;
         }
         
@@ -182,7 +334,7 @@ void recordPayment() {
     
     double amount;
     do {
-        cout << "Enter Amount (Rs.): ";
+        cout << "Enter Amount Paid: ";
         cin >> amount;
         
         if (cin.fail() || amount <= 0) {
@@ -194,124 +346,78 @@ void recordPayment() {
         }
     } while (true);
     
-    // Calculate late fine
-    double fine = calculateLateFine(date);
-    if (fine > 0) {
-        cout << "Late Fine: Rs. " << fine << endl;
-        cout << "Total Amount: Rs. " << (amount + fine) << endl;
-    }
+    // Update paid amount
+    feeRecord.amountPaid += amount;
+    feeRecord.paidDate = paidDate;
     
-    // Confirm payment
-    cout << "Confirm payment? (y/n): ";
-    char confirm;
-    cin >> confirm;
+    // Update the row
+    vector<string> updatedRow;
+    updatedRow.push_back(feeRecord.rollNumber);
+    updatedRow.push_back(feeRecord.semester);
     
-    if (tolower(confirm) != 'y') {
-        cout << "Payment cancelled." << endl;
-        return;
-    }
+    stringstream due, paid;
+    due << feeRecord.amountDue;
+    paid << feeRecord.amountPaid;
     
-    // Record payment
-    FeeRecord record;
-    record.rollNumber = roll;
-    record.date = date;
-    record.amount = amount;
-    record.status = "Paid";
+    updatedRow.push_back(due.str());
+    updatedRow.push_back(paid.str());
+    updatedRow.push_back(feeRecord.dueDate);
+    updatedRow.push_back(feeRecord.paidDate);
     
-    stringstream ss;
-    ss << record.rollNumber << "|" << record.date << "|" 
-       << record.amount << "|" << record.status;
+    data[index] = updatedRow;
     
-    if (appendTXT("fees.txt", ss.str())) {
+    // Get header
+    vector<string> header;
+    header.push_back("roll");
+    header.push_back("semester");
+    header.push_back("amount_due");
+    header.push_back("amount_paid");
+    header.push_back("due_date");
+    header.push_back("paid_date");
+    
+    if (writeTXT("fees.txt", header, data)) {
         cout << "Payment recorded successfully!" << endl;
-        generateReceipt(roll, amount, date);
+        
+        // Calculate late fine
+        double lateFine = computeLateFine(feeRecord.dueDate, feeRecord.paidDate, feeRecord.amountDue);
+        if (lateFine > 0) {
+            cout << "Late Fine: " << fixed << setprecision(2) << lateFine << endl;
+        }
+        
+        generateReceipt(roll, semester);
     } else {
         cout << "Error: Failed to record payment!" << endl;
     }
 }
 
-// View outstanding balance
-void viewOutstandingBalance() {
-    cout << "\n--- VIEW OUTSTANDING BALANCE ---" << endl;
-    
-    string roll;
-    cout << "Enter Student Roll Number: ";
-    cin >> roll;
-    
-    // Check if student exists
-    Student student = findStudentByRoll(roll);
-    if (student.rollNumber == "NULL") {
-        cout << "Error: Student not found!" << endl;
-        return;
-    }
-    
-    vector<string> lines = readTXT("fees.txt");
-    double totalPaid = 0;
-    double totalFees = 50000.0; // Semester fee (fixed for simplicity)
-    
-    for (size_t i = 0; i < lines.size(); i++) {
-        FeeRecord record = parseFeeLine(lines[i]);
-        if (record.rollNumber == roll && record.status == "Paid") {
-            totalPaid += record.amount;
-        }
-    }
-    
-    double outstanding = totalFees - totalPaid;
-    if (outstanding < 0) outstanding = 0;
-    
-    cout << "\n--- OUTSTANDING BALANCE FOR " << student.name << " ---" << endl;
-    cout << "Student: " << student.name << " (" << roll << ")" << endl;
-    cout << "Total Semester Fee: Rs. " << totalFees << endl;
-    cout << "Total Paid: Rs. " << totalPaid << endl;
-    cout << "Outstanding Balance: Rs. " << outstanding << endl;
-    
-    if (outstanding > 0) {
-        cout << "\nStatus: UNPAID - Please clear your dues!" << endl;
-    } else {
-        cout << "\nStatus: PAID - All fees cleared!" << endl;
-    }
-}
-
-// View fee defaulters (bubble sort)
-void viewFeeDefaulters() {
+// Get defaulters - returns students with balance > 0 past due date
+void getDefaulters() {
     cout << "\n--- FEE DEFAULTERS LIST ---" << endl;
     
-    vector<string> lines = readTXT("fees.txt");
-    vector<FeeRecord> allFees;
-    
-    for (size_t i = 0; i < lines.size(); i++) {
-        FeeRecord record = parseFeeLine(lines[i]);
-        allFees.push_back(record);
-    }
-    
-    // Get unique students with unpaid fees
+    vector<vector<string> > data = readTXT("fees.txt");
     vector<FeeRecord> defaulters;
-    vector<string> processedRolls;
     
-    for (size_t i = 0; i < allFees.size(); i++) {
-        if (allFees[i].status == "Unpaid") {
-            bool alreadyProcessed = false;
-            for (size_t j = 0; j < processedRolls.size(); j++) {
-                if (processedRolls[j] == allFees[i].rollNumber) {
-                    alreadyProcessed = true;
-                    break;
-                }
-            }
+    // Current date for comparison (hardcoded for demonstration)
+    string currentDate = "30-01-2024";
+    
+    for (size_t i = 0; i < data.size(); i++) {
+        if (data[i].size() >= 6) {
+            FeeRecord record;
+            record.rollNumber = data[i][0];
+            record.semester = data[i][1];
+            record.amountDue = atof(data[i][2].c_str());
+            record.amountPaid = atof(data[i][3].c_str());
+            record.dueDate = data[i][4];
+            record.paidDate = data[i][5];
             
-            if (!alreadyProcessed) {
-                // Check if student has any paid fees
-                bool hasPaid = false;
-                for (size_t j = 0; j < allFees.size(); j++) {
-                    if (allFees[j].rollNumber == allFees[i].rollNumber && 
-                        allFees[j].status == "Paid") {
-                        hasPaid = true;
-                        break;
-                    }
-                }
-                
-                if (!hasPaid) {
-                    defaulters.push_back(allFees[i]);
-                    processedRolls.push_back(allFees[i].rollNumber);
+            double outstanding = record.amountDue - record.amountPaid;
+            
+            // Check if balance > 0 and past due date
+            if (outstanding > 0) {
+                // Check if due date has passed
+                int daysDiff = daysBetween(record.dueDate, currentDate);
+                if (daysDiff > 0) {
+                    defaulters.push_back(record);
                 }
             }
         }
@@ -322,39 +428,26 @@ void viewFeeDefaulters() {
         return;
     }
     
-    // Sort defaulters using bubble sort (by amount descending)
-    bubbleSortFees(defaulters);
+    // Sort by outstanding amount using bubble sort
+    bubbleSortDefaulters(defaulters);
     
-    cout << "\n--- STUDENTS WITH UNPAID FEES ---" << endl;
+    cout << "\n--- STUDENTS WITH OUTSTANDING FEES ---" << endl;
     cout << left << setw(15) << "Roll Number" 
          << setw(30) << "Name" 
-         << setw(20) << "Amount Due" << endl;
-    cout << string(65, '-') << endl;
+         << setw(15) << "Semester" 
+         << setw(15) << "Outstanding" << endl;
+    cout << string(75, '-') << endl;
     
     for (size_t i = 0; i < defaulters.size(); i++) {
         Student student = findStudentByRoll(defaulters[i].rollNumber);
         if (student.rollNumber != "NULL") {
+            double outstanding = defaulters[i].amountDue - defaulters[i].amountPaid;
             cout << left << setw(15) << student.rollNumber
                  << setw(30) << student.name
-                 << setw(20) << "Rs. " << fixed << setprecision(2) << 50000.0 << endl;
+                 << setw(15) << defaulters[i].semester
+                 << setw(15) << fixed << setprecision(2) << outstanding << endl;
         }
     }
     
     cout << "\nTotal Defaulters: " << defaulters.size() << endl;
-}
-
-// Bubble sort implementation
-void bubbleSortFees(vector<FeeRecord>& fees) {
-    int n = fees.size();
-    
-    for (int i = 0; i < n - 1; i++) {
-        for (int j = 0; j < n - i - 1; j++) {
-            // Sort by amount descending
-            if (fees[j].amount < fees[j + 1].amount) {
-                FeeRecord temp = fees[j];
-                fees[j] = fees[j + 1];
-                fees[j + 1] = temp;
-            }
-        }
-    }
 }

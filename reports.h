@@ -6,42 +6,56 @@
 
 using namespace std;
 
+// Structure for department summary
+struct DepartmentSummary {
+    string departmentName;
+    int studentCount;
+    double averageCGPA;
+    double passRate; // Percentage of students with CGPA >= 2.0
+};
+
 // Function declarations for reports
 
 /*
- * Generates merit list of students based on CGPA
- * Uses selection sort
+ * All active students are sorted by CGPA in descending order
+ * Formatted table with rank column
  */
-void generateMeritList();
+void printMeritList();
 
 /*
- * Generates list of attendance defaulters
+ * Students with any course attendance < 75%
+ * Shows roll, name, course, and percentage
  */
-void generateAttendanceDefaulters();
+void printAttendanceDefaulters();
 
 /*
- * Generates list of fee defaulters
+ * Call all fee defaulters
+ * Formatted with outstanding amount and weeks overdue
  */
-void generateFeeDefaulters();
+void printFeeDefaulters();
 
 /*
- * Generates semester result for a student
+ * Full result sheet with borders
+ * Grade, GPA, and attendance status per student
  */
-void generateSemesterResult();
+void printSemesterResult();
 
 /*
- * Generates department summary
+ * Group students by dept field using nested loops and parallel arrays
+ * Shows count, avg CGPA, pass rate per dept
  */
-void generateDepartmentSummary();
+void printDepartmentSummary();
 
 /*
- * Exports a report to a text file
+ * Redirects cout to ofstream for chosen report
+ * Restores cout after
+ * Saves .txt file
  */
-void exportReportToFile(const string& filename, const vector<string>& reportLines);
+void exportReportToFile(const string& filename, void (*reportFunction)());
 
 /*
- * Selection sort for sorting students by CGPA (descending)
+ * Sorts students by CGPA in descending order using selection sort
  */
-void sortByCGPA(vector<Student>& students);
+void sortStudentsByCGPA(vector<Student>& students);
 
 #endif
